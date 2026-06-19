@@ -1,0 +1,44 @@
+[
+  {
+    "time": "08:00",
+    "Zone_A": { "power": 520, "co2": 540, "temperature": 24 },
+    "Zone_B": { "power": 950, "co2": 690, "temperature": 25 },
+    "Zone_C": { "power": 430, "co2": 500, "temperature": 23 }
+  },
+  {
+    "time": "09:00",
+    "Zone_A": { "power": 880, "co2": 650, "temperature": 25 },
+    "Zone_B": { "power": 1450, "co2": 820, "temperature": 27 },
+    "Zone_C": { "power": 600, "co2": 570, "temperature": 24 }
+  },
+  {
+    "time": "10:00",
+    "Zone_A": { "power": 1320, "co2": 760, "temperature": 26 },
+    "Zone_B": { "power": 2100, "co2": 1050, "temperature": 30 },
+    "Zone_C": { "power": 780, "co2": 650, "temperature": 25 }
+  },
+  {
+    "time": "11:00",
+    "Zone_A": { "power": 1780, "co2": 920, "temperature": 28 },
+    "Zone_B": { "power": 2600, "co2": 1220, "temperature": 33 },
+    "Zone_C": { "power": 1150, "co2": 740, "temperature": 27 }
+  },
+  {
+    "time": "12:00",
+    "Zone_A": { "power": 2300, "co2": 1100, "temperature": 31 },
+    "Zone_B": { "power": 2850, "co2": 1380, "temperature": 35 },
+    "Zone_C": { "power": 1500, "co2": 880, "temperature": 29 }
+  },
+  {
+    "time": "13:00",
+    "Zone_A": { "power": 1900, "co2": 980, "temperature": 30 },
+    "Zone_B": { "power": 2450, "co2": 1180, "temperature": 32 },
+    "Zone_C": { "power": 1200, "co2": 790, "temperature": 28 }
+  },
+  {
+    "time": "14:00",
+    "Zone_A": { "power": 1600, "co2": 860, "temperature": 28 },
+    "Zone_B": { "power": 2050, "co2": 1000, "temperature": 30 },
+    "Zone_C": { "power": 980, "co2": 700, "temperature": 26 }
+  }
+]
