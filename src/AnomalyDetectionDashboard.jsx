@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import energyData from './original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_dataset.json';
 import './AnomalyDetectionDashboard.css';
 
 const COLORS = {
@@ -316,8 +316,69 @@ function TypePill({ type }) {
   );
 }
 
+function buildAiPayload({
+  selectedFloor,
+  visibleRows,
+  anomalies,
+  critical,
+  anomalyRate,
+  typeSummary,
+  floorSummary,
+}) {
+  return {
+    dashboard_type: 'multi-resource anomaly dashboard',
+    selected_floor: selectedFloor,
+    summary: {
+      records_checked: visibleRows.length,
+      anomaly_count: anomalies.length,
+      anomaly_rate: Number(anomalyRate.toFixed(2)),
+      detection_method:
+        'Weighted z-score across energy, CO2 emission, waste, water and temperature indicators',
+      threshold_basis: 'Top 10% anomaly score',
+    },
+    anomaly_type_summary: typeSummary,
+    floor_summary: floorSummary.map((item) => ({
+      floor: item.floor,
+      anomaly_count: item.anomalyCount,
+      average_score: Number((item.avgScore || 0).toFixed(3)),
+      records: item.records,
+    })),
+    most_critical_anomaly: critical
+      ? {
+          date: critical.date,
+          floor: critical.floor,
+          anomaly_type: critical.anomalyType,
+          energy_kwh: Number(critical.energy.toFixed(2)),
+          co2_kg: Number(critical.co2.toFixed(2)),
+          waste_kg: Number(critical.waste.toFixed(2)),
+          water: Number(critical.water.toFixed(2)),
+          temperature: Number(critical.temperature.toFixed(2)),
+          anomaly_score: Number(critical.anomalyScore.toFixed(3)),
+          reason: critical.reason,
+          current_recommended_action: critical.action,
+        }
+      : null,
+    top_anomalies: anomalies.slice(0, 10).map((row) => ({
+      date: row.date,
+      floor: row.floor,
+      anomaly_type: row.anomalyType,
+      energy_kwh: Number(row.energy.toFixed(2)),
+      co2_kg: Number(row.co2.toFixed(2)),
+      waste_kg: Number(row.waste.toFixed(2)),
+      water: Number(row.water.toFixed(2)),
+      temperature: Number(row.temperature.toFixed(2)),
+      anomaly_score: Number(row.anomalyScore.toFixed(3)),
+      reason: row.reason,
+      current_recommended_action: row.action,
+    })),
+  };
+}
+
 export default function AnomalyDetectionDashboard() {
   const [selectedFloor, setSelectedFloor] = useState('All');
+  const [aiInsight, setAiInsight] = useState(null);
+  const [isGeneratingInsight, setIsGeneratingInsight] = useState(false);
+  const [aiInsightError, setAiInsightError] = useState('');
 
   const anomalyData = useMemo(() => buildAnomalyData(), []);
   const allRows = anomalyData.rows;
@@ -417,6 +478,45 @@ export default function AnomalyDetectionDashboard() {
     ? (anomalies.length / visibleRows.length) * 100
     : 0;
 
+  const handleGenerateAiInsight = async () => {
+    try {
+      setIsGeneratingInsight(true);
+      setAiInsightError('');
+      setAiInsight(null);
+
+      const payload = buildAiPayload({
+        selectedFloor,
+        visibleRows,
+        anomalies,
+        critical,
+        anomalyRate,
+        typeSummary,
+        floorSummary,
+      });
+
+      const response = await fetch('http://localhost:8001/generate-ai-insight', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== 'success') {
+        throw new Error(data.error || 'Failed to generate AI insight.');
+      }
+
+      setAiInsight(data.insight);
+    } catch (error) {
+      console.error(error);
+      setAiInsightError(error.message || 'Failed to generate AI insight.');
+    } finally {
+      setIsGeneratingInsight(false);
+    }
+  };
+
   return (
     <div className="anomaly-dashboard">
       <header className="anomaly-hero">
@@ -431,7 +531,14 @@ export default function AnomalyDetectionDashboard() {
 
         <div className="anomaly-filter">
           <span>Floor filter</span>
-          <select value={selectedFloor} onChange={(event) => setSelectedFloor(event.target.value)}>
+          <select
+            value={selectedFloor}
+            onChange={(event) => {
+              setSelectedFloor(event.target.value);
+              setAiInsight(null);
+              setAiInsightError('');
+            }}
+          >
             {floorOptions.map((floor) => (
               <option key={floor} value={floor}>
                 {floor}
@@ -487,6 +594,353 @@ export default function AnomalyDetectionDashboard() {
           </div>
         </section>
       ) : null}
+
+      <section className="anomaly-card" style={{ marginTop: '18px' }}>
+        <div className="anomaly-card-header">
+          <h3>AI Action Plan</h3>
+          <p>
+            Generate a building-manager-oriented action plan from the detected anomaly summary.
+          </p>
+        </div>
+
+        <button
+          onClick={handleGenerateAiInsight}
+          disabled={isGeneratingInsight || anomalies.length === 0}
+          style={{
+            border: '1px solid rgba(56, 189, 248, 0.45)',
+            background: 'linear-gradient(135deg, #38bdf8, #818cf8)',
+            color: '#020617',
+            padding: '11px 15px',
+            borderRadius: '14px',
+            fontWeight: 800,
+            cursor: isGeneratingInsight || anomalies.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: isGeneratingInsight || anomalies.length === 0 ? 0.55 : 1,
+          }}
+        >
+          {isGeneratingInsight ? 'Generating...' : 'Generate AI Action Plan'}
+        </button>
+
+        {aiInsightError ? (
+          <p style={{ color: '#f87171', marginTop: '14px', fontWeight: 700 }}>
+            {aiInsightError}
+          </p>
+        ) : null}
+
+{aiInsight ? (
+  <div style={{ marginTop: '20px', display: 'grid', gap: '18px' }}>
+    <div
+      style={{
+        padding: '18px',
+        borderRadius: '18px',
+        background:
+          'linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(15, 23, 42, 0.9))',
+        border: '1px solid rgba(56, 189, 248, 0.28)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: '14px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <span
+            style={{
+              display: 'inline-flex',
+              marginBottom: '8px',
+              color: '#38bdf8',
+              fontSize: '12px',
+              fontWeight: 800,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            AI Summary
+          </span>
+
+          <h3 style={{ margin: 0, color: '#f8fafc' }}>
+            {aiInsight.overall_priority} Priority Action Plan
+          </h3>
+        </div>
+
+        <span
+          style={{
+            padding: '8px 12px',
+            borderRadius: '999px',
+            color:
+              aiInsight.overall_priority === 'High'
+                ? '#f87171'
+                : aiInsight.overall_priority === 'Medium'
+                  ? '#fbbf24'
+                  : '#34d399',
+            background:
+              aiInsight.overall_priority === 'High'
+                ? 'rgba(248, 113, 113, 0.14)'
+                : aiInsight.overall_priority === 'Medium'
+                  ? 'rgba(251, 191, 36, 0.14)'
+                  : 'rgba(52, 211, 153, 0.14)',
+            border: '1px solid rgba(148, 163, 184, 0.22)',
+            fontWeight: 800,
+          }}
+        >
+          {aiInsight.overall_priority}
+        </span>
+      </div>
+
+      <p style={{ margin: '14px 0 0', color: '#cbd5e1', lineHeight: 1.7 }}>
+        {aiInsight.key_insight}
+      </p>
+    </div>
+
+    <div
+      style={{
+        padding: '18px',
+        borderRadius: '18px',
+        background: 'rgba(15, 23, 42, 0.78)',
+        border: '1px solid rgba(148, 163, 184, 0.18)',
+      }}
+    >
+      <h4 style={{ margin: '0 0 10px', color: '#f8fafc' }}>
+        What this means
+      </h4>
+      <p style={{ margin: 0, color: '#94a3b8', lineHeight: 1.7 }}>
+        {aiInsight.manager_explanation}
+      </p>
+    </div>
+
+    <div>
+      <h4 style={{ margin: '0 0 12px', color: '#f8fafc' }}>
+        Immediate Actions
+      </h4>
+
+      <div style={{ display: 'grid', gap: '12px' }}>
+        {aiInsight.immediate_actions?.map((item, index) => (
+          <div
+            key={index}
+            style={{
+              padding: '16px',
+              borderRadius: '16px',
+              background: 'rgba(30, 41, 59, 0.72)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'flex-start',
+              }}
+            >
+              <span
+                style={{
+                  minWidth: '30px',
+                  height: '30px',
+                  borderRadius: '999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(56, 189, 248, 0.16)',
+                  color: '#38bdf8',
+                  fontWeight: 800,
+                }}
+              >
+                {item.priority || index + 1}
+              </span>
+
+              <div>
+                <h5 style={{ margin: 0, color: '#f8fafc', fontSize: '15px' }}>
+                  {item.action}
+                </h5>
+
+                <p style={{ margin: '8px 0', color: '#94a3b8', lineHeight: 1.6 }}>
+                  {item.why}
+                </p>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginTop: '10px',
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '999px',
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      color: '#38bdf8',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    Target: {item.target_zone}
+                  </span>
+
+                  <span
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '999px',
+                      background: 'rgba(251, 191, 36, 0.12)',
+                      color: '#fbbf24',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    When: {item.when}
+                  </span>
+                </div>
+
+                <p style={{ margin: '10px 0 0', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <b>Expected impact:</b> {item.expected_impact}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '14px',
+      }}
+    >
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: '16px',
+          background: 'rgba(15, 23, 42, 0.78)',
+          border: '1px solid rgba(148, 163, 184, 0.18)',
+        }}
+      >
+        <h4 style={{ margin: '0 0 10px', color: '#f8fafc' }}>
+          Short-term Actions
+        </h4>
+
+        <ul style={{ margin: 0, paddingLeft: '18px' }}>
+          {aiInsight.short_term_actions?.map((item, index) => (
+            <li
+              key={index}
+              style={{
+                color: '#94a3b8',
+                marginBottom: '10px',
+                lineHeight: 1.6,
+              }}
+            >
+              <strong style={{ color: '#cbd5e1' }}>{item.action}</strong>
+              <br />
+              <span>{item.timeframe}</span>
+              <br />
+              <span>{item.why}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: '16px',
+          background: 'rgba(15, 23, 42, 0.78)',
+          border: '1px solid rgba(148, 163, 184, 0.18)',
+        }}
+      >
+        <h4 style={{ margin: '0 0 10px', color: '#f8fafc' }}>
+          Data to Collect Next
+        </h4>
+
+        <ul style={{ margin: 0, paddingLeft: '18px' }}>
+          {aiInsight.data_to_collect_next?.map((item, index) => (
+            <li
+              key={index}
+              style={{
+                color: '#94a3b8',
+                marginBottom: '8px',
+                lineHeight: 1.6,
+              }}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: '16px',
+          background: 'rgba(15, 23, 42, 0.78)',
+          border: '1px solid rgba(148, 163, 184, 0.18)',
+        }}
+      >
+        <h4 style={{ margin: '0 0 10px', color: '#f8fafc' }}>
+          Follow-up Checks
+        </h4>
+
+        <ul style={{ margin: 0, paddingLeft: '18px' }}>
+          {aiInsight.follow_up_checks?.map((item, index) => (
+            <li
+              key={index}
+              style={{
+                color: '#94a3b8',
+                marginBottom: '8px',
+                lineHeight: 1.6,
+              }}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+
+    <details
+      style={{
+        padding: '16px',
+        borderRadius: '16px',
+        background: 'rgba(15, 23, 42, 0.6)',
+        border: '1px solid rgba(148, 163, 184, 0.14)',
+      }}
+    >
+      <summary
+        style={{
+          color: '#f8fafc',
+          cursor: 'pointer',
+          fontWeight: 700,
+        }}
+      >
+        View risk explanation and limitations
+      </summary>
+
+      <div style={{ marginTop: '14px', display: 'grid', gap: '12px' }}>
+        <div>
+          <h4 style={{ color: '#f8fafc', margin: '0 0 6px' }}>
+            Risk Explanation
+          </h4>
+          <p style={{ color: '#94a3b8', lineHeight: 1.65 }}>
+            {aiInsight.risk_explanation}
+          </p>
+        </div>
+
+        <div>
+          <h4 style={{ color: '#f8fafc', margin: '0 0 6px' }}>
+            Limitations
+          </h4>
+          <p style={{ color: '#94a3b8', lineHeight: 1.65 }}>
+            {aiInsight.limitations}
+          </p>
+        </div>
+      </div>
+    </details>
+  </div>
+) : null}
+      </section>
 
       <div className="anomaly-chart-grid">
         <ChartCard
