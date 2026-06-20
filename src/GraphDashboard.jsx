@@ -342,6 +342,66 @@ function GraphCard({ title, description, children, className = '' }) {
   );
 }
 
+function KpiIcon({ type }) {
+  if (type === 'water') {
+    return (
+      <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
+        <path
+          d="M12 3.2C9.2 6.5 6.5 10.2 6.5 13.3C6.5 16.7 9 19.5 12 19.5C15 19.5 17.5 16.7 17.5 13.3C17.5 10.2 14.8 6.5 12 3.2Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M9.8 13.8C10.1 15.1 11 16 12.3 16.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (type === 'temp') {
+    return (
+      <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
+        <path
+          d="M10 14.7V5.8C10 4.3 11.1 3.2 12.6 3.2C14.1 3.2 15.2 4.3 15.2 5.8V14.7C16.1 15.4 16.7 16.4 16.7 17.6C16.7 19.8 14.9 21.5 12.6 21.5C10.3 21.5 8.5 19.8 8.5 17.6C8.5 16.4 9.1 15.4 10 14.7Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12.6 7.2V17.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+        />
+        <circle cx="12.6" cy="17.7" r="1.5" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
+      <path
+        d="M13.2 2.8L5.6 13H11L9.9 21.2L18.4 10.6H12.8L13.2 2.8Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function KpiCard({ label, value, unit, previous, type }) {
   const hasPrevious = typeof previous === 'number' && previous !== 0;
   const delta = hasPrevious ? ((value - previous) / previous) * 100 : 0;
@@ -352,7 +412,9 @@ function KpiCard({ label, value, unit, previous, type }) {
   return (
     <div className="graph-kpi-card">
       <div className="graph-kpi-top">
-        <span className={`graph-icon-dot graph-icon-${type}`} />
+        <span className={`graph-icon-box graph-icon-${type}`}>
+          <KpiIcon type={type} />
+        </span>
         <span>{label}</span>
       </div>
       <div className="graph-kpi-value">
