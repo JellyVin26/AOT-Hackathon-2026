@@ -1,0 +1,331 @@
+.graph-dashboard {
+  min-height: calc(100vh - 86px);
+  padding: 24px;
+  color: var(--color-fg);
+}
+
+.graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.graph-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.graph-logo-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  color: var(--color-brand);
+  font-weight: 800;
+}
+
+.graph-header h1 {
+  margin: 0;
+  color: var(--color-fg-strong);
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.graph-header p,
+.graph-note,
+.graph-footer {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.graph-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.graph-mini-pill {
+  font-size: 12px;
+  color: var(--color-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.graph-mini-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.graph-power::before { background: var(--color-power); }
+.graph-water::before { background: var(--color-water); }
+.graph-temp::before { background: var(--color-temp); }
+
+.graph-toggle-group,
+.graph-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid var(--color-border);
+}
+
+.graph-tabs {
+  margin: 18px 0;
+}
+
+.graph-toggle {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.graph-toggle-active {
+  color: var(--color-fg-strong);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(129, 140, 248, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.26);
+}
+
+.graph-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.graph-kpi-card,
+.graph-card,
+.graph-state-card {
+  border: 1px solid var(--color-border);
+  background: rgba(15, 23, 42, 0.86);
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.22);
+  border-radius: 18px;
+}
+
+.graph-kpi-card {
+  padding: 18px;
+}
+
+.graph-kpi-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.graph-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  border: 1px solid var(--color-border);
+  background: rgba(30, 41, 59, 0.68);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.graph-kpi-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.graph-icon-power {
+  color: var(--color-power);
+  background: rgba(56, 189, 248, 0.10);
+  border-color: rgba(56, 189, 248, 0.24);
+}
+
+.graph-icon-water {
+  color: var(--color-water);
+  background: rgba(45, 212, 191, 0.10);
+  border-color: rgba(45, 212, 191, 0.24);
+}
+
+.graph-icon-temp {
+  color: var(--color-temp);
+  background: rgba(251, 146, 60, 0.10);
+  border-color: rgba(251, 146, 60, 0.24);
+}
+
+.graph-kpi-value {
+  margin-top: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.graph-kpi-value span {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--color-fg-strong);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.graph-kpi-value small {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.graph-kpi-delta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.delta-good,
+.delta-bad,
+.delta-neutral {
+  border-radius: 8px;
+  padding: 3px 6px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta-good {
+  color: var(--color-good);
+  background: rgba(52, 211, 153, 0.10);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.delta-bad {
+  color: var(--color-bad);
+  background: rgba(248, 113, 113, 0.10);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.delta-neutral {
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+}
+
+.graph-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.graph-grid-overview {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.graph-span-2 { grid-column: span 2; }
+.graph-span-3 { grid-column: span 3; }
+
+.graph-card {
+  overflow: hidden;
+}
+
+.graph-card-header {
+  padding: 17px 18px 6px;
+}
+
+.graph-card-header h3 {
+  margin: 0;
+  color: var(--color-fg-strong);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.graph-card-header p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.graph-card-body {
+  padding: 4px 14px 14px;
+}
+
+.graph-tooltip {
+  min-width: 180px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.97);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.35);
+  padding: 10px;
+  color: var(--color-fg);
+}
+
+.graph-tooltip-label {
+  color: var(--color-fg-strong);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.graph-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.graph-tooltip-row span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.graph-tooltip-row p {
+  margin: 0;
+  color: var(--color-muted);
+  flex: 1;
+}
+
+.graph-tooltip-row strong {
+  color: var(--color-fg-strong);
+}
+
+.graph-state-card {
+  padding: 72px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.graph-error {
+  color: var(--color-bad);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.graph-footer {
+  text-align: center;
+  padding: 22px 0 4px;
+}
+
+@media (max-width: 980px) {
+  .graph-kpi-grid,
+  .graph-grid-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .graph-span-2,
+  .graph-span-3 {
+    grid-column: auto;
+  }
+}
