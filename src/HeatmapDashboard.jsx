@@ -376,25 +376,110 @@ const getAggregatedRoomValue = (
   return Math.round(total * 100) / 100;
 };
 
-const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourIndex) => {
-  const isAll = levelId === 'all';
+// Sums getAggregatedRoomValue across every room on a single floor.
+// Used for "All Rooms" mode (and as a building block for "All Floors" + "All Rooms").
+const getAggregatedAllRoomsValue = (levelId, metric, timeIndex, periodMode, hourIndex = 0) => {
+  let sum = 0;
+  let hasData = false;
 
-  if (periodMode === 'hour') {
-    let selectedDayValue = null;
-    if (isAll) {
-      let sum = 0;
-      let hasData = false;
-      levelConfigs.forEach((level) => {
-        const val = getRoomValue(energyData[timeIndex], level.id, roomId, metric);
-        if (val !== null) {
-          sum += val;
-          hasData = true;
-        }
-      });
-      selectedDayValue = hasData ? sum : null;
-    } else {
-      selectedDayValue = getRoomValue(energyData[timeIndex], levelId, roomId, metric);
+  getRoomsForLevel(levelId).forEach((room) => {
+    const value = getAggregatedRoomValue(levelId, room.id, metric, timeIndex, periodMode, hourIndex);
+    if (value !== null) {
+      sum += value;
+      hasData = true;
     }
+  });
+
+  return hasData ? sum : null;
+};
+
+// Resolves the displayed value for the right-hand analytics panel across all
+// 4 scope combinations: single floor/single room, all floors/single room,
+// single floor/all rooms, all floors/all rooms.
+const getCurrentValue = (levelId, roomId, metric, timeIndex, periodMode, hourIndex = 0) => {
+  const isAllFloorsScope = levelId === 'all';
+  const isAllRoomsScope = roomId === 'all';
+
+  if (isAllFloorsScope && isAllRoomsScope) {
+    let sum = 0;
+    let hasData = false;
+    levelConfigs.forEach((level) => {
+      const value = getAggregatedAllRoomsValue(level.id, metric, timeIndex, periodMode, hourIndex);
+      if (value !== null) {
+        sum += value;
+        hasData = true;
+      }
+    });
+    return hasData ? sum : null;
+  }
+
+  if (isAllFloorsScope) {
+    let sum = 0;
+    let hasData = false;
+    levelConfigs.forEach((level) => {
+      const value = getAggregatedRoomValue(level.id, roomId, metric, timeIndex, periodMode, hourIndex);
+      if (value !== null) {
+        sum += value;
+        hasData = true;
+      }
+    });
+    return hasData ? sum : null;
+  }
+
+  if (isAllRoomsScope) {
+    return getAggregatedAllRoomsValue(levelId, metric, timeIndex, periodMode, hourIndex);
+  }
+
+  return getAggregatedRoomValue(levelId, roomId, metric, timeIndex, periodMode, hourIndex);
+};
+
+// Raw (unaggregated, single-row) sum across every room on a given floor.
+// Building block for chart data when "All Rooms" is selected.
+const sumRoomsRawValue = (row, levelId, metric) => {
+  let sum = 0;
+  let hasData = false;
+
+  getRoomsForLevel(levelId).forEach((room) => {
+    const value = getRoomValue(row, levelId, room.id, metric);
+    if (value !== null) {
+      sum += value;
+      hasData = true;
+    }
+  });
+
+  return hasData ? sum : null;
+};
+
+// Resolves a single raw data-row value for the chart across all 4 scope
+// combinations (levelId may be 'all', roomId may be 'all').
+const getChartRowValue = (row, levelId, roomId, metric) => {
+  if (levelId === 'all') {
+    let sum = 0;
+    let hasData = false;
+
+    levelConfigs.forEach((level) => {
+      const value =
+        roomId === 'all'
+          ? sumRoomsRawValue(row, level.id, metric)
+          : getRoomValue(row, level.id, roomId, metric);
+
+      if (value !== null) {
+        sum += value;
+        hasData = true;
+      }
+    });
+
+    return hasData ? sum : null;
+  }
+
+  return roomId === 'all'
+    ? sumRoomsRawValue(row, levelId, metric)
+    : getRoomValue(row, levelId, roomId, metric);
+};
+
+const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourIndex) => {
+  if (periodMode === 'hour') {
+    const selectedDayValue = getChartRowValue(energyData[timeIndex], levelId, roomId, metric);
 
     if (selectedDayValue === null) {
       return [];
@@ -410,24 +495,10 @@ const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourInde
 
   const rows = getPeriodRows(timeIndex, periodMode);
 
-  return rows.map((row) => {
-    let value = null;
-    if (isAll) {
-      let sum = 0;
-      let hasData = false;
-      levelConfigs.forEach((level) => {
-        const val = getRoomValue(row, level.id, roomId, metric);
-        if (val !== null) {
-          sum += val;
-          hasData = true;
-        }
-      });
-      value = hasData ? sum : null;
-    } else {
-      value = getRoomValue(row, levelId, roomId, metric);
-    }
-    return { date: row.date.slice(5), value };
-  });
+  return rows.map((row) => ({
+    date: row.date.slice(5),
+    value: getChartRowValue(row, levelId, roomId, metric),
+  }));
 };
 
 const getPeriodDescription = (timeIndex, periodMode, hourIndex = 0) => {
@@ -575,14 +646,142 @@ const getMetricRangeAllFloors = (metric, periodMode = 'month') => {
   };
 };
 
-const getHeatmapColor = (value, metric, periodMode = 'month', isAllFloors = false) => {
+// Distribution of values when ALL ROOMS ON A SINGLE FLOOR are summed together.
+// Correct comparison basis for "All Rooms" mode on a single floor, since the
+// displayed value there is a same-floor multi-room total, not a single-room value.
+const getMetricRangeAllRooms = (metric, periodMode = 'month') => {
+  const values = [];
+
+  const sumRoomsOnLevel = (levelId, index, hour) => {
+    let sum = 0;
+    let hasData = false;
+
+    getRoomsForLevel(levelId).forEach((room) => {
+      const value =
+        periodMode === 'hour'
+          ? getAggregatedRoomValue(levelId, room.id, metric, index, periodMode, hour)
+          : getAggregatedRoomValue(levelId, room.id, metric, index, periodMode);
+
+      if (typeof value === 'number') {
+        sum += value;
+        hasData = true;
+      }
+    });
+
+    return hasData ? sum : null;
+  };
+
+  energyData.forEach((row, index) => {
+    levelConfigs.forEach((level) => {
+      if (periodMode === 'hour') {
+        for (let hour = 0; hour < 24; hour += 1) {
+          const total = sumRoomsOnLevel(level.id, index, hour);
+          if (total !== null) {
+            values.push(total);
+          }
+        }
+        return;
+      }
+
+      const total = sumRoomsOnLevel(level.id, index);
+      if (total !== null) {
+        values.push(total);
+      }
+    });
+  });
+
+  if (values.length === 0) {
+    return { min: 0, max: 1 };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  return {
+    min,
+    max: max === min ? min + 1 : max,
+  };
+};
+
+// Distribution of values when THE ENTIRE BUILDING (all floors, all rooms) is
+// summed together. Correct comparison basis for "All Floors" + "All Rooms"
+// combined, since the displayed value there is the full-building total.
+const getMetricRangeAllFloorsAllRooms = (metric, periodMode = 'month') => {
+  const values = [];
+
+  const sumBuilding = (index, hour) => {
+    let sum = 0;
+    let hasData = false;
+
+    levelConfigs.forEach((level) => {
+      getRoomsForLevel(level.id).forEach((room) => {
+        const value =
+          periodMode === 'hour'
+            ? getAggregatedRoomValue(level.id, room.id, metric, index, periodMode, hour)
+            : getAggregatedRoomValue(level.id, room.id, metric, index, periodMode);
+
+        if (typeof value === 'number') {
+          sum += value;
+          hasData = true;
+        }
+      });
+    });
+
+    return hasData ? sum : null;
+  };
+
+  energyData.forEach((row, index) => {
+    if (periodMode === 'hour') {
+      for (let hour = 0; hour < 24; hour += 1) {
+        const total = sumBuilding(index, hour);
+        if (total !== null) {
+          values.push(total);
+        }
+      }
+      return;
+    }
+
+    const total = sumBuilding(index);
+    if (total !== null) {
+      values.push(total);
+    }
+  });
+
+  if (values.length === 0) {
+    return { min: 0, max: 1 };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  return {
+    min,
+    max: max === min ? min + 1 : max,
+  };
+};
+
+// Picks the correct min/max distribution out of the 4 aggregation patterns
+// (single floor/single room, all floors/single room, single floor/all rooms,
+// all floors/all rooms) based on the two scope flags.
+const getMetricRangeForScope = (metric, periodMode, isAllFloors, isAllRooms) => {
+  if (isAllFloors && isAllRooms) return getMetricRangeAllFloorsAllRooms(metric, periodMode);
+  if (isAllFloors) return getMetricRangeAllFloors(metric, periodMode);
+  if (isAllRooms) return getMetricRangeAllRooms(metric, periodMode);
+  return getMetricRange(metric, periodMode);
+};
+
+const getHeatmapColor = (
+  value,
+  metric,
+  periodMode = 'month',
+  isAllFloors = false,
+  isAllRooms = false
+) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return '#64748b';
   }
 
-  const { min, max } = isAllFloors
-    ? getMetricRangeAllFloors(metric, periodMode)
-    : getMetricRange(metric, periodMode);
+  const { min, max } = getMetricRangeForScope(metric, periodMode, isAllFloors, isAllRooms);
 
   const percentage = Math.min(
     1,
@@ -622,14 +821,12 @@ const predictNextValue = (levelId, room, metric, timeIndex) => {
   return currentValue;
 };
 
-const getRiskLabel = (value, metric, periodMode = 'month', isAllFloors = false) => {
+const getRiskLabel = (value, metric, periodMode = 'month', isAllFloors = false, isAllRooms = false) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return 'No data';
   }
 
-  const { min, max } = isAllFloors
-    ? getMetricRangeAllFloors(metric, periodMode)
-    : getMetricRange(metric, periodMode);
+  const { min, max } = getMetricRangeForScope(metric, periodMode, isAllFloors, isAllRooms);
   const percentage = (value - min) / (max - min);
 
   if (percentage < 0.35) return 'Low';
@@ -751,7 +948,9 @@ function RoomHeatmapOverlay() {
           const valueToShow =
             viewMode === 'predicted' ? predictedValue : currentValue;
 
-          const isActive = activeRoom === room.id;
+          const isActive = activeRoom === 'all' || activeRoom === room.id;
+          // Tile color is intentionally always single-floor/single-room basis
+          // (no isAllFloors/isAllRooms flags) — see HANDOFF notes.
           const roomColor = getHeatmapColor(valueToShow, activeMetric, periodMode);
 
           // Show only the selected room highlighted (dim others), regardless of
@@ -1123,52 +1322,39 @@ export default function HeatmapDashboard() {
   // The 3D view handles all floors independently
   const analyticsLevelId = isAllFloors ? 'Level_1' : activeLevel;
   const visibleRooms = getRoomsForLevel(analyticsLevelId);
-  const resolvedRoomId = visibleRooms.some((room) => room.id === activeRoom)
-    ? activeRoom
-    : visibleRooms[0]?.id || 'Room_A';
+  const isAllRooms = activeRoom === 'all';
+  const resolvedRoomId =
+    isAllRooms || visibleRooms.some((room) => room.id === activeRoom)
+      ? activeRoom
+      : visibleRooms[0]?.id || 'Room_A';
 
   const selectedLevel = isAllFloors ? null : getLevelInfo(activeLevel);
-  const selectedRoom =
-    visibleRooms.find((item) => item.id === resolvedRoomId) || visibleRooms[0];
-
-  // For "all floors" mode, sum the room value across all floors
-  let currentValue = null;
-  if (isAllFloors) {
-    let sum = 0;
-    let hasData = false;
-    levelConfigs.forEach((level) => {
-      const val = getAggregatedRoomValue(
-        level.id,
-        resolvedRoomId,
-        activeMetric,
-        timeIndex,
-        periodMode,
-        hourIndex
-      );
-      if (val !== null) {
-        sum += val;
-        hasData = true;
+  const selectedRoom = isAllRooms
+    ? {
+        id: 'all',
+        label: 'All Rooms',
+        zoneName: 'All Zones',
+        description: `${visibleRooms.length} rooms combined`,
       }
-    });
-    currentValue = hasData ? sum : null;
-  } else {
-    currentValue = getAggregatedRoomValue(
-      activeLevel,
-      resolvedRoomId,
-      activeMetric,
-      timeIndex,
-      periodMode,
-      hourIndex
-    );
-  }
+    : visibleRooms.find((item) => item.id === resolvedRoomId) || visibleRooms[0];
+
+  // Resolves the displayed value across all 4 floor/room scope combinations.
+  const currentValue = getCurrentValue(
+    activeLevel,
+    resolvedRoomId,
+    activeMetric,
+    timeIndex,
+    periodMode,
+    hourIndex
+  );
 
   const predictedValue = currentValue;
 
   const displayedValue =
     viewMode === 'predicted' ? predictedValue : currentValue;
 
-  const riskLabel = getRiskLabel(displayedValue, activeMetric, periodMode, isAllFloors);
-  const valueColor = getHeatmapColor(displayedValue, activeMetric, periodMode, isAllFloors);
+  const riskLabel = getRiskLabel(displayedValue, activeMetric, periodMode, isAllFloors, isAllRooms);
+  const valueColor = getHeatmapColor(displayedValue, activeMetric, periodMode, isAllFloors, isAllRooms);
   const delta =
     currentValue === null || predictedValue === null
       ? null
@@ -1333,6 +1519,7 @@ export default function HeatmapDashboard() {
                   onChange={(event) => setActiveRoom(event.target.value)}
                   style={selectStyle}
                 >
+                  <option value="all">All Rooms</option>
                   {visibleRooms.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.label} | {room.zoneName} | {room.description}
@@ -1703,7 +1890,7 @@ export default function HeatmapDashboard() {
               <StatCard
                 label="Selected Range Value"
                 value={predictedValue === null ? 'No data' : `${formatValue(predictedValue)} ${metricInfo.unit}`}
-                valueColor={getHeatmapColor(predictedValue, activeMetric, periodMode, isAllFloors)}
+                valueColor={getHeatmapColor(predictedValue, activeMetric, periodMode, isAllFloors, isAllRooms)}
                 helper="Calculated from the selected range"
               />
               <StatCard
