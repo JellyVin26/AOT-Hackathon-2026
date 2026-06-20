@@ -1,343 +1,259 @@
-"""
-train_model.py
-==============
+"""Train Model A: a regression model that predicts expected hourly energy use.
 
-Trains Model A — Adaptive Compute Boundary (ACB) prediction.
+Pipeline
+--------
+1. Load the AI-ready dataset and sort by timestamp.
+2. Select ONLY allowed features (no leakage columns, no target, no energy
+   breakdown columns that sum to the target).
+3. Build a scikit-learn ``Pipeline`` = ``ColumnTransformer`` (OneHotEncoder for
+   categoricals, StandardScaler for numerics) -> ``RandomForestRegressor``.
+4. Split by time: first 80% of timestamps -> train, last 20% -> test.
+   (No random split.)
+5. Evaluate with MAE, RMSE, MAPE, R2.
+6. Refit on ALL data and save:
+     - ML1/models/expected_energy_model.pkl   (full pipeline)
+     - ML1/models/preprocessing_pipeline.pkl  (the transformer step)
+     - ML1/models/model_metrics.json
 
-The Adaptive Compute Boundary (ACB) decides how many of the 10 data-centre
-floors should be allocated to real-time workloads versus scheduled batch
-workloads:
+Run directly:
 
-    Floors 1 .. target_acb_floor          -> real-time zone
-    Floors target_acb_floor + 1 .. 10     -> scheduled batch zone
-
-This is a supervised **multi-class classification** problem where the target
-column `target_acb_floor` is bounded to the range [2, 8].
-
-Pipeline summary
-----------------
-1. Load the main dataset.
-2. Split by `period_label` -> train/test on PAST rows only (chronological
-   80/20 split sorted by timestamp). PRESENT and FUTURE rows are kept aside
-   for prediction/demo.
-3. Drop leakage columns, timestamp and period_label.
-4. Build a scikit-learn Pipeline + ColumnTransformer
-   (OneHotEncode categoricals, passthrough numerics).
-5. Train and compare DecisionTree, RandomForest, GradientBoosting.
-6. Evaluate each model (accuracy, MAE, within +/-1 floor, classification
-   report, confusion matrix).
-7. Select the best model and save it together with its feature list to
-   models/acb_model.pkl.
-
-Run from the project root:
-    python src/train_model.py
+    python ML1/src/train_model.py
 """
 
 from __future__ import annotations
 
-import os
+import json
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-    mean_absolute_error,
-)
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-# ---------------------------------------------------------------------------
-# Project paths (script works when run from the project root)
-# ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_PATH = PROJECT_ROOT / "data" / "model_a_adaptive_workload_boundary_dataset.csv"
-MODEL_DIR = PROJECT_ROOT / "models"
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-MODEL_PATH = MODEL_DIR / "acb_model.pkl"
-
-# ---------------------------------------------------------------------------
-# Column groups
-# ---------------------------------------------------------------------------
-
-# Columns that leak the answer or are reserved for splitting only.
-LEAKAGE_COLS = [
-    "target_acb_floor",
-    "target_real_time_floor_count",
-    "target_batch_floor_count",
-    "target_background_reserve_met",
-]
-
-# Used only for ordering / splitting, never as features.
-META_COLS = ["timestamp", "period_label"]
-
-# Categorical columns that need OneHot encoding.
-CATEGORICAL_COLS = ["tariff_version"]
-
-# The model must only predict boundaries in this inclusive range.
-ACB_MIN = 2
-ACB_MAX = 8
-
-# Thresholds used for the rule-based explanations (shared with predict step).
-NIGHT_TARIFF_IS_ACTIVE = "is_nighttime"
+# Allow running both as a script (`python ML1/src/train_model.py`) and as a
+# package member (`python -m ML1.src.train_model`).
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from ML1.src import feature_config, utils  # type: ignore
+else:
+    from . import feature_config, utils
 
 
-# ---------------------------------------------------------------------------
-# Data loading & preparation
-# ---------------------------------------------------------------------------
-def load_dataset(path: Path) -> pd.DataFrame:
-    """Load the main dataset and parse the timestamp into a real datetime."""
-    df = pd.read_csv(path)
-    # Parse timestamp purely for chronological sorting; it is dropped before fit.
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    return df
+def time_based_split(df: pd.DataFrame, test_fraction: float = 0.2):
+    """Split into train/test by timestamp (first 80% / last 20%).
 
-
-def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
+    Rows are already sorted by timestamp in ``utils.load_dataset``. We split at
+    the timestamp boundary so the test set contains strictly-later timestamps
+    than the train set.
     """
-    Return the feature dataframe X (no target, no leakage, no meta cols).
+    n = len(df)
+    split_idx = int(n * (1.0 - test_fraction))
+    split_idx = min(max(split_idx, 1), n - 1)
+    train_df = df.iloc[:split_idx].copy()
+    test_df = df.iloc[split_idx:].copy()
 
-    Missing numeric values are median-filled; missing categoricals are filled
-    with a sentinel 'missing' string so OneHotEncoder can handle them.
-    """
-    drop_cols = LEAKAGE_COLS + META_COLS
-    feature_cols = [c for c in df.columns if c not in drop_cols]
-    X = df[feature_cols].copy()
-
-    # Fill missing values so the pipeline never breaks on NaNs.
-    for col in X.columns:
-        if col in CATEGORICAL_COLS:
-            X[col] = X[col].fillna("missing").astype(str)
-        else:
-            # Numeric columns -> median imputation
-            if X[col].isna().any():
-                med = X[col].median()
-                X[col] = X[col].fillna(med if pd.notna(med) else 0.0)
-    return X
-
-
-def chronological_split(past_df: pd.DataFrame, train_frac: float = 0.8):
-    """
-    Sort past data by timestamp and take the earliest 80% as train and the
-    remaining 20% as test. This avoids the look-ahead bias of a random split
-    on time-series-like data.
-    """
-    past_sorted = past_df.sort_values("timestamp").reset_index(drop=True)
-    n = len(past_sorted)
-    split_idx = int(n * train_frac)
-    train_df = past_sorted.iloc[:split_idx].copy()
-    test_df = past_sorted.iloc[split_idx:].copy()
+    train_ts = train_df[feature_config.TIMESTAMP_COLUMN].iloc[0]
+    test_ts = test_df[feature_config.TIMESTAMP_COLUMN].iloc[0]
+    print(
+        f"[split] train: {len(train_df)} rows from {train_ts}  |  "
+        f"test: {len(test_df)} rows from {test_ts}"
+    )
     return train_df, test_df
 
 
-# ---------------------------------------------------------------------------
-# Pipeline construction
-# ---------------------------------------------------------------------------
-def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
-    """
-    Build a ColumnTransformer that one-hot encodes the categorical columns
-    and leaves the numeric columns untouched. Numeric scaling is intentionally
-    omitted because tree-based models are scale-invariant.
-    """
-    numeric_cols = [c for c in X.columns if c not in CATEGORICAL_COLS]
-
-    preprocessor = ColumnTransformer(
-        transformers=[
+def build_pipeline(
+    numeric_features: list[str],
+    categorical_features: list[str],
+) -> Pipeline:
+    """Build the full preprocessing + regression pipeline."""
+    transformers = []
+    if numeric_features:
+        transformers.append(("num", StandardScaler(), numeric_features))
+    if categorical_features:
+        transformers.append(
             (
                 "cat",
                 OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                CATEGORICAL_COLS,
-            ),
-            ("num", "passthrough", numeric_cols),
-        ],
-        remainder="drop",
+                categorical_features,
+            )
+        )
+    preprocessor = ColumnTransformer(
+        transformers=transformers, remainder="drop", verbose_feature_names_out=False
     )
-    return preprocessor
+
+    regressor = RandomForestRegressor(
+        n_estimators=80,
+        max_depth=None,
+        min_samples_leaf=2,
+        n_jobs=-1,
+        random_state=42,
+    )
+    return Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("regressor", regressor),
+        ]
+    )
 
 
-def build_pipeline(preprocessor: ColumnTransformer, model) -> Pipeline:
-    """Bundle the preprocessor and an estimator into a single Pipeline."""
-    return Pipeline(steps=[("preprocessor", preprocessor), ("model", model)])
+def _metric_bundle(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    """Compute MAE, RMSE, MAPE, R2.
+
+    MAPE is computed over rows whose actual value is large enough to give a
+    meaningful percentage (>= 1.0 kWh). Tiny/zero actuals make MAPE explode
+    without saying anything useful about model quality; MAE/RMSE already cover
+    those rows. The number of rows used is reported for transparency.
+    """
+    mae = float(mean_absolute_error(y_true, y_pred))
+    rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+    r2 = float(r2_score(y_true, y_pred))
+
+    meaningful = np.abs(y_true) >= 1.0
+    if meaningful.any():
+        yt = y_true[meaningful]
+    else:
+        yt = np.where(np.abs(y_true) < 1e-6, 1e-6, y_true)
+    mape = float(np.mean(np.abs((yt - y_pred[meaningful]) / yt)) * 100.0)
+    return {
+        "mae": mae,
+        "rmse": rmse,
+        "mape": mape,
+        "mape_rows_used": int(meaningful.sum()),
+        "r2": r2,
+    }
 
 
-# ---------------------------------------------------------------------------
-# Evaluation helpers
-# ---------------------------------------------------------------------------
-def within_plus_minus_one_accuracy(y_true, y_pred) -> float:
-    """Fraction of predictions within +/- 1 floor of the true boundary."""
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
-    return float(np.mean(np.abs(y_true - y_pred) <= 1))
+def train(
+    data_path=None,
+    save: bool = True,
+) -> dict:
+    """Train the expected-energy model.
 
+    Returns a dict containing the fitted pipeline, metrics, selected features
+    and the leakage check results.
+    """
+    utils.ensure_dirs()
+    df = utils.load_dataset(data_path)
+    print(f"[data] loaded {len(df)} rows, {len(df.columns)} columns")
 
-def clip_predictions(y_pred: np.ndarray) -> np.ndarray:
-    """Safety-clip predictions into the valid ACB range [ACB_MIN, ACB_MAX]."""
-    return np.clip(y_pred, ACB_MIN, ACB_MAX)
+    # ---- Leakage guard: verify no leakage column is selected as a feature ---
+    numeric_features, categorical_features, missing = feature_config.select_features(
+        df.columns
+    )
+    if missing:
+        print(
+            "[warning] missing optional features (training will continue without them):"
+        )
+        for col in missing:
+            print(f"           - {col}")
+    else:
+        print("[features] all requested features present.")
 
+    selected_features = numeric_features + categorical_features
+    leakage_in_features = feature_config.get_leakage_columns(selected_features)
+    if leakage_in_features:
+        raise RuntimeError(
+            "LEAKAGE DETECTED: these leakage/target columns would be used as "
+            f"features: {leakage_in_features}. Refusing to train."
+        )
+    print(
+        f"[features] using {len(selected_features)} input features "
+        f"({len(numeric_features)} numeric, {len(categorical_features)} categorical)."
+    )
 
-def evaluate_model(name: str, model, X_test, y_test) -> dict:
-    """Run a model on the test set and print/collect the requested metrics."""
-    y_pred_raw = model.predict(X_test)
-    y_pred = clip_predictions(y_pred_raw)
+    # ---- Time-based split --------------------------------------------------
+    train_df, test_df = time_based_split(df, test_fraction=0.2)
 
-    acc = accuracy_score(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-    within1 = within_plus_minus_one_accuracy(y_test, y_pred)
-    labels = sorted(set(y_test) | set(y_pred))
-    report = classification_report(y_test, y_pred, labels=labels, zero_division=0)
-    cm = confusion_matrix(y_test, y_pred, labels=labels)
+    X_train = train_df[selected_features]
+    y_train = train_df[feature_config.TARGET_COLUMN].astype(float).to_numpy()
+    X_test = test_df[selected_features]
+    y_test = test_df[feature_config.TARGET_COLUMN].astype(float).to_numpy()
 
-    print("\n" + "=" * 70)
-    print(f"MODEL: {name}")
-    print("=" * 70)
-    print(f"Accuracy              : {acc:.4f}")
-    print(f"Mean Absolute Error   : {mae:.4f} floors")
-    print(f"Within +/-1 floor     : {within1:.4f}")
-    print("\nClassification report:")
-    print(report)
-    print("Confusion matrix (rows=true, cols=pred), labels =", labels)
-    print(cm)
+    # ---- Train + evaluate --------------------------------------------------
+    pipeline = build_pipeline(numeric_features, categorical_features)
+    print("[train] fitting RandomForestRegressor on time-based train split...")
+    pipeline.fit(X_train, y_train)
+
+    y_pred_test = pipeline.predict(X_test)
+    metrics = _metric_bundle(y_test, y_pred_test)
+    print(
+        "[metrics] MAE={mae:.3f}  RMSE={rmse:.3f}  MAPE={mape:.2f}%  R2={r2:.4f}".format(
+            **metrics
+        )
+    )
+
+    # Sanity check: predictions must not equal actuals (no leakage / no copy).
+    if np.allclose(y_pred_test, y_test, atol=1e-6):
+        raise RuntimeError(
+            "Predictions are identical to actuals on the test set — the model is "
+            "copying the target. Check for leakage."
+        )
+
+    # ---- Refit on ALL data for the deployed model --------------------------
+    print("[train] refitting on full dataset for deployment...")
+    full_pipeline = build_pipeline(numeric_features, categorical_features)
+    X_all = df[selected_features]
+    y_all = df[feature_config.TARGET_COLUMN].astype(float).to_numpy()
+    full_pipeline.fit(X_all, y_all)
+
+    # Persist feature lists on the pipeline object for later introspection.
+    # (``feature_names_in_`` is a read-only property on Pipeline, so we store
+    # the lists under our own attributes and expose them via a helper.)
+    full_pipeline._ml1_features = list(selected_features)
+    full_pipeline._ml1_numeric_features = list(numeric_features)
+    full_pipeline._ml1_categorical_features = list(categorical_features)
+
+    if save:
+        utils.save_pickle(full_pipeline, utils.MODEL_PATH)
+        utils.save_pickle(
+            full_pipeline.named_steps["preprocessor"], utils.PIPELINE_PATH
+        )
+        payload = {
+            "model": "RandomForestRegressor",
+            "target": feature_config.TARGET_COLUMN,
+            "split": {
+                "method": "time_based",
+                "train_fraction": 0.8,
+                "test_fraction": 0.2,
+                "train_rows": int(len(train_df)),
+                "test_rows": int(len(test_df)),
+            },
+            "features": {
+                "numeric": list(numeric_features),
+                "categorical": list(categorical_features),
+                "all": list(selected_features),
+            },
+            "leakage_columns_excluded": feature_config.get_leakage_columns(df.columns),
+            "metrics": metrics,
+        }
+        utils.save_json(payload, utils.METRICS_PATH)
+        print(f"[save] model   -> {utils.MODEL_PATH}")
+        print(f"[save] pipeline-> {utils.PIPELINE_PATH}")
+        print(f"[save] metrics -> {utils.METRICS_PATH}")
 
     return {
-        "name": name,
-        "model": model,
-        "accuracy": acc,
-        "mae": mae,
-        "within1": within1,
+        "pipeline": full_pipeline,
+        "metrics": metrics,
+        "features": selected_features,
+        "numeric_features": numeric_features,
+        "categorical_features": categorical_features,
+        "train_rows": len(train_df),
+        "test_rows": len(test_df),
     }
 
 
-# ---------------------------------------------------------------------------
-# Model selection
-# ---------------------------------------------------------------------------
-def select_best_model(results: list[dict]) -> dict:
-    """
-    Pick the best model. Primary key = highest within +/-1 floor accuracy,
-    tie-breaker = lowest MAE, final tie-breaker = highest accuracy.
-    """
-    return max(
-        results,
-        key=lambda r: (r["within1"], -r["mae"], r["accuracy"]),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Saving
-# ---------------------------------------------------------------------------
-def save_model(bundle: dict, path: Path) -> None:
-    """Persist the model bundle (pipeline + metadata) to disk."""
-    import joblib
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(bundle, path)
-    print(f"\nSaved best model bundle -> {path}")
-
-
-# ---------------------------------------------------------------------------
-# Main entrypoint
-# ---------------------------------------------------------------------------
 def main() -> None:
-    # Make sure output folders exist.
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    print("Loading dataset ...")
-    df = load_dataset(DATA_PATH)
-    print(f"  rows={len(df)}  cols={df.shape[1]}")
-
-    # --- Split past / present / future -------------------------------------
-    past_df = df[df["period_label"] == "past"].copy()
-    print(
-        f"\nPeriod split -> past={len(past_df)}, "
-        f"present={len(df[df['period_label']=='present'])}, "
-        f"future={len(df[df['period_label']=='future'])}"
-    )
-
-    train_df, test_df = chronological_split(past_df, train_frac=0.8)
-    print(
-        f"Chronological split -> train={len(train_df)} "
-        f"({train_df['timestamp'].min()} -> {train_df['timestamp'].max()})"
-    )
-
-    # --- Build feature / target arrays -------------------------------------
-    X_train = build_feature_matrix(train_df)
-    X_test = build_feature_matrix(test_df)
-    y_train = train_df["target_acb_floor"].astype(int).to_numpy()
-    y_test = test_df["target_acb_floor"].astype(int).to_numpy()
-
-    # Persist the feature list so predict/dashboard use the exact same columns.
-    feature_list = list(X_train.columns)
-    print(f"\nFeatures used ({len(feature_list)}): {feature_list[:8]} ...")
-
-    # --- Build the shared preprocessor -------------------------------------
-    preprocessor = build_preprocessor(X_train)
-
-    # --- Candidate models --------------------------------------------------
-    # RandomForest is the expected main model; the other two are baselines.
-    candidate_models = {
-        "DecisionTree": DecisionTreeClassifier(
-            max_depth=12, min_samples_leaf=5, random_state=42
-        ),
-        "RandomForest": RandomForestClassifier(
-            n_estimators=300,
-            max_depth=None,
-            min_samples_leaf=2,
-            n_jobs=-1,
-            random_state=42,
-        ),
-        "GradientBoosting": GradientBoostingClassifier(
-            n_estimators=200, max_depth=3, learning_rate=0.1, random_state=42
-        ),
-    }
-
-    results = []
-    for name, estimator in candidate_models.items():
-        print(f"\nTraining {name} ...")
-        pipe = build_pipeline(build_preprocessor(X_train), estimator)
-        pipe.fit(X_train, y_train)
-        results.append(evaluate_model(name, pipe, X_test, y_test))
-
-    # --- Select & save the best model --------------------------------------
-    best = select_best_model(results)
-    print("\n" + "#" * 70)
-    print("MODEL COMPARISON SUMMARY")
-    print("#" * 70)
-    summary = pd.DataFrame(
-        [{"Model": r["name"], "Accuracy": r["accuracy"], "MAE": r["mae"],
-          "Within +/-1": r["within1"]} for r in results]
-    )
-    print(summary.to_string(index=False))
-    print(f"\nBEST MODEL: {best['name']}  "
-          f"(within +/-1 = {best['within1']:.4f}, MAE = {best['mae']:.4f}, "
-          f"acc = {best['accuracy']:.4f})")
-
-    bundle = {
-        "pipeline": best["model"],
-        "feature_list": feature_list,
-        "categorical_cols": CATEGORICAL_COLS,
-        "acb_min": ACB_MIN,
-        "acb_max": ACB_MAX,
-        "target_column": "target_acb_floor",
-        "metrics": {
-            "accuracy": best["accuracy"],
-            "mae": best["mae"],
-            "within1": best["within1"],
-        },
-    }
-    save_model(bundle, MODEL_PATH)
-
-    # Also write the comparison summary CSV for reference.
-    summary_path = OUTPUT_DIR / "model_comparison.csv"
-    summary.to_csv(summary_path, index=False)
-    print(f"Saved comparison summary -> {summary_path}")
-    print("\nTraining complete.")
+    print("=" * 70)
+    print("Model A training: expected hourly energy (ML-based anomaly detection)")
+    print("=" * 70)
+    result = train(save=True)
+    print("-" * 70)
+    print("Done. Metrics:", json.dumps(result["metrics"], indent=2))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
