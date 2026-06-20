@@ -1,7 +1,5 @@
 # EcoVision
 
-## Project Title and Description
-
 **EcoVision** is a web-based sustainability monitoring system that helps users understand building performance through interactive visual analytics.
 
 The system provides a combined dashboard for energy usage, CO₂ emissions, waste, water, temperature, anomaly detection, and 3D building heatmap visualisation.
@@ -24,6 +22,7 @@ The system provides a combined dashboard for energy usage, CO₂ emissions, wast
 * Vite
 * JavaScript / JSX
 * CSS
+* Python
 * Recharts
 * Three.js / React Three Fiber
 * Zustand
