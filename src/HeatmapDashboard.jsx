@@ -932,7 +932,7 @@ function HeatmapLegend() {
 // ==========================================================
 // 8. Main App
 // ==========================================================
-export default function App() {
+export default function HeatmapDashboard() {
   const {
     activeLevel,
     activeRoom,
@@ -1037,15 +1037,15 @@ export default function App() {
     <div
       className="dashboard-root"
       style={{
-        minHeight: '100vh',
-        width: '100vw',
+        minHeight: 'calc(100vh - 86px)',
+        width: '100%',
         background:
           'linear-gradient(180deg, #0f172a 0%, #111827 35%, #0f172a 100%)',
         color: '#f8fafc',
         fontFamily: DASHBOARD_FONT,
         padding: '18px',
         boxSizing: 'border-box',
-        overflow: 'hidden',
+        overflow: 'visible',
       }}
     >
       <div
@@ -1053,14 +1053,14 @@ export default function App() {
           display: 'grid',
           gridTemplateColumns: '1.35fr 0.85fr',
           gap: '18px',
-          height: 'calc(100vh - 36px)',
+          minHeight: 'calc(100vh - 122px)',
           minWidth: 0,
         }}
       >
         <div
           style={{
             display: 'grid',
-            gridTemplateRows: 'auto 1fr',
+            gridTemplateRows: 'auto minmax(520px, 1fr)',
             gap: '18px',
             minHeight: 0,
             minWidth: 0,
@@ -1277,7 +1277,7 @@ export default function App() {
           <Card
             style={{
               position: 'relative',
-              overflow: 'hidden',
+              overflow: 'visible',
               minHeight: 0,
               background:
                 'radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), rgba(15, 23, 42, 0.95) 35%), rgba(15, 23, 42, 0.95)',

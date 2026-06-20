@@ -51,7 +51,8 @@ body,
 }
 
 body {
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   color: var(--color-fg);
 }
 
@@ -112,4 +113,12 @@ select {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+
+/* Page scroll fix */
+html,
+body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
