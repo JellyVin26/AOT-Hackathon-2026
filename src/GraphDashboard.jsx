@@ -634,13 +634,41 @@ function InfrastructureTab({ data, floorRows }) {
           <ComposedChart data={data} margin={{ top: 12, right: 22, left: 4, bottom: 0 }}>
             <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
             <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
+            <YAxis
+              yAxisId="load"
+              stroke="#94a3b8"
+              tickFormatter={formatCompact}
+              tick={{ fontSize: 11 }}
+            />
+            <YAxis
+              yAxisId="temp"
+              orientation="right"
+              domain={[0, 40]}
+              stroke={palette.temp}
+              tick={{ fontSize: 11 }}
+              tickFormatter={(value) => `${value}°C`}
+              label={{
+                value: 'Temperature (°C)',
+                angle: 90,
+                position: 'insideRight',
+                fill: '#94a3b8',
+                style: { fontSize: 11 },
+                offset: 4,
+              }}
+            />
             <Tooltip content={<GraphTooltip />} />
             <Legend />
-            <Bar dataKey="ac" name="AC Load" stackId="load" fill={palette.ac} />
-            <Bar dataKey="light" name="Lighting" stackId="load" fill={palette.light} />
-            <Bar dataKey="plug" name="Plug Load" stackId="load" fill={palette.plug} radius={[7, 7, 0, 0]} />
-            <Line dataKey="avgTemperature" name="Avg Temperature" stroke={palette.temp} strokeWidth={2.5} dot={false} />
+            <Bar yAxisId="load" dataKey="ac" name="AC Load" stackId="load" fill={palette.ac} />
+            <Bar yAxisId="load" dataKey="light" name="Lighting" stackId="load" fill={palette.light} />
+            <Bar yAxisId="load" dataKey="plug" name="Plug Load" stackId="load" fill={palette.plug} radius={[7, 7, 0, 0]} />
+            <Line
+              yAxisId="temp"
+              dataKey="avgTemperature"
+              name="Avg Temperature"
+              stroke={palette.temp}
+              strokeWidth={2.5}
+              dot={false}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </GraphCard>
