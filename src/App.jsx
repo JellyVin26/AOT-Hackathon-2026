@@ -13,12 +13,12 @@ const navItems = [
   {
     id: 'anomaly',
     label: 'Anomaly Detection',
-    description: 'Unusual energy patterns',
+    description: 'Unusual patterns',
   },
   {
     id: 'heatmap',
     label: '3D Heatmap',
-    description: 'Building energy view',
+    description: 'Building heatmap',
   },
 ];
 
@@ -29,7 +29,7 @@ function TopNavigation({ activeView, setActiveView }) {
         <div className="top-nav-logo">S</div>
         <div>
           <h1>Sustainable Building Intelligence</h1>
-          <p>Energy efficiency, anomaly detection and smart building insights</p>
+          <p>Energy, CO₂, waste and anomaly monitoring</p>
         </div>
       </div>
 

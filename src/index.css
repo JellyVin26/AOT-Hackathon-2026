@@ -122,3 +122,13 @@ body {
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
+
+
+/* Font consistency */
+html,
+body,
+#root {
+  font-family: var(--font-sans) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

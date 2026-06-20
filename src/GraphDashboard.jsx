@@ -716,7 +716,7 @@ export default function GraphDashboard() {
           </div>
 
           <p className="graph-note">
-            Showing {timeUnit} data from the original 10-floor dataset · CO₂ factor: 0.758 kgCO₂e/kWh · waste values are generated for demo
+            Showing {timeUnit} data from the original 10-floor dataset · CO₂ factor: 0.758 kgCO₂e/kWh
           </p>
 
           <div className="graph-tabs">
