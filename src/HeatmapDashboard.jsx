@@ -49,7 +49,7 @@ const BUILDING_SCALE = 0.003;
 // Rotate the whole scene together so the heatmap stays inside the building.
 const SCENE_ROTATION_Y = Math.PI / 4;
 
-const DASHBOARD_FONT = 'var(--font-sans)';
+const DASHBOARD_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 // ==========================================================
 // 3. Level and Room Mapping
@@ -1081,7 +1081,7 @@ export default function HeatmapDashboard() {
                   10 Floor Two-Month Energy Heatmap
                 </div>
                 <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '13px' }}>
-                  Visualizing energy consumption patterns across rooms and time.
+                  
                 </div>
               </div>
 
@@ -1231,7 +1231,7 @@ export default function HeatmapDashboard() {
                 </SegmentedButton>
               </div>
               <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '12px' }}>
-                Light View merges all building levels into one model for smoother performance, while Detailed View shows the original model with more detailed look.
+                Light View uses the merged GLB. The building and heatmap are rotated together so the heatmap stays aligned.
               </div>
             </div>
 
