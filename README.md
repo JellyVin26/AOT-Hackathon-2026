@@ -1,16 +1,58 @@
-# React + Vite
+# Sustainable Building Intelligence Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Project Title and Description
 
-Currently, two official plugins are available:
+**Sustainable Building Intelligence Dashboard** is a web-based sustainability monitoring system that helps users understand building performance through interactive visual analytics.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The system provides a combined dashboard for energy usage, CO₂ emissions, waste, water, temperature, anomaly detection, and 3D building heatmap visualisation.
 
-## React Compiler
+## Team Name & Team Members
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Team Name:** ChatGPT Did This
 
-## Expanding the ESLint configuration
+**Team Members:**
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+* WIlliam Melvin Sukamto
+* Bunta Iwasaki
+* Morikawa Kaoru
+* Ryan Ngiam Hong Seng
+* Ong Ding Zhang
+
+## Technologies Used
+
+* React
+* Vite
+* JavaScript / JSX
+* CSS
+* Recharts
+* Three.js / React Three Fiber
+* Zustand
+* JSON dataset
+
+## Challenge and Approach
+
+
+## Usage Instructions
+
+Run the project using:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the local Vite link, usually:
+
+```bash
+http://localhost:5173/
+```
+
+## Demo / Screenshots
+
+**Video Demo:** (video link)
+
+**Screenshots:**
+
+* Dashboard overview screenshot
+* Anomaly detection screenshot
+* 3D heatmap screenshot
