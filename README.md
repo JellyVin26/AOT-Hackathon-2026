@@ -30,7 +30,8 @@ The system provides a combined dashboard for energy usage, CO₂ emissions, wast
 * JSON dataset
 
 ## Challenge and Approach
-
+We chose track 3 that talk about smart resource managament because we think we can give different perspective and able to do this track. The challenge was to combine different sustainability-related data into one clear dashboard. The system helps users understand electricity usage, water consumption, carbon emissions, and waste disposal.
+Our solution is a sustainability monitoring dashboard that helps companies track key environmental factors such as energy, CO₂ emissions, water usage, temperature, and waste.
 
 ## Usage Instructions
 
