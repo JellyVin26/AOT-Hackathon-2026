@@ -35,18 +35,47 @@ Our solution is a sustainability monitoring dashboard that helps companies track
 
 ## Usage Instructions
 
-Run the project using:
+1. Install frontend dependencies
 
-```bash
+From the main project folder, run:
+
 npm install
-npm run dev
-```
+2. Install backend dependencies
 
-Then open the local Vite link, usually:
+Go into the backend folder:
 
-```bash
-http://localhost:5173/
-```
+cd backend
+
+Create a virtual environment:
+
+python -m venv venv
+
+Activate the virtual environment on Windows PowerShell:
+
+.\venv\Scripts\Activate.ps1
+
+Install the backend packages:
+
+pip install fastapi uvicorn openai python-dotenv
+
+Then go back to the main project folder:
+
+cd ..
+3. Install concurrently
+
+This allows the frontend and backend to run together using one command:
+
+npm install --save-dev concurrently
+4. Run the full system
+
+From the main project folder, run:
+
+npm run start:all
+
+This will start both:
+
+Frontend: http://localhost:5173
+Backend:  http://127.0.0.1:8001
 
 ## Demo / Screenshots
 
