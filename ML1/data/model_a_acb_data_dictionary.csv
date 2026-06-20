@@ -1,0 +1,119 @@
+column_name,description
+timestamp,Hourly timestamp in Asia/Kuala_Lumpur reference time.
+period_label,"past, present, or future relative to 2026-06-20 11:00:00."
+hour_of_day,Hour from 0 to 23.
+day_of_week,"0=Monday, 6=Sunday."
+is_weekend,"1 if Saturday or Sunday, otherwise 0."
+is_public_holiday,Synthetic holiday flag for demo; replace with real supplier/calendar data.
+is_daytime,1 for 08:00-21:59; daytime high tariff period.
+is_nighttime,1 for 22:00-07:59; nighttime low tariff period.
+hours_until_night_tariff,Hours until lower night tariff starts; 0 if already night.
+tariff_version,Stable tariff period/version; changes at 2026-07-01 in this synthetic data.
+base_tariff_rm_per_kwh,RM/kWh before weekend or public holiday discount.
+discount_rate,Discount applied for weekend/holiday.
+effective_tariff_rm_per_kwh,Final tariff used for cost calculation.
+outdoor_temp_c,Synthetic outdoor temperature.
+outdoor_humidity_percent,Synthetic outdoor humidity.
+real_time_workload_count,Number of critical real-time workloads in this hour.
+batch_workload_count,Number of scheduled batch workloads in this hour.
+background_workload_count,Number of background workloads in this hour.
+real_time_cpu_demand_units,Aggregate CPU demand proxy for real-time workloads.
+batch_cpu_demand_units,Aggregate CPU demand proxy for batch workloads.
+background_cpu_demand_units,Aggregate CPU demand proxy for background workloads.
+real_time_ram_demand_units,Aggregate RAM demand proxy for real-time workloads.
+batch_ram_demand_units,Aggregate RAM demand proxy for batch workloads.
+background_ram_demand_units,Aggregate RAM demand proxy for background workloads.
+real_time_network_demand_units,Network demand proxy for real-time workloads.
+batch_storage_io_demand_units,Storage I/O demand proxy for batch workloads.
+avg_real_time_latency_requirement_ms,Average latency requirement for real-time workloads.
+avg_batch_deadline_hours,Average deadline window for batch workloads.
+batch_delayable_percent,Percentage of batch jobs that can be delayed.
+required_background_reserve_percent,Reserved capacity needed for background/overflow tasks.
+forecast_real_time_cpu_next_3h,Forecasted real-time CPU demand over next 3 hours.
+forecast_batch_cpu_next_6h,Forecasted batch CPU demand over next 6 hours.
+forecast_effective_tariff_next_6h_avg,Average effective tariff forecast for next 6 hours.
+building_avg_rack_utilization_percent,Average rack utilization across all floors.
+building_avg_available_capacity_percent,Average available rack capacity across all floors.
+building_avg_temp_c,Average floor temperature proxy.
+total_it_power_kw,Total IT/rack power proxy.
+total_cooling_power_kw,Total cooling power proxy.
+total_facility_power_kw,IT power + cooling power.
+pue_estimate,Estimated PUE = total facility power / IT power.
+total_water_lph,Total water usage in liters per hour.
+wue_l_per_kwh,Estimated water usage effectiveness proxy.
+estimated_hourly_energy_cost_rm,Facility power multiplied by effective tariff.
+estimated_water_liters,Water usage for the hour.
+target_acb_floor,Target Adaptive Workload Boundary. Floors 1 to target are real-time; remaining floors are batch.
+target_real_time_floor_count,Number of floors assigned to real-time workloads.
+target_batch_floor_count,Number of floors assigned to batch workloads.
+target_background_reserve_met,1 if average available capacity appears enough for reserve requirement.
+floor_1_avg_rack_utilization_percent,Average rack utilization on floor 1.
+floor_1_available_capacity_percent,Available rack capacity on floor 1.
+floor_1_avg_power_kw,Average power use proxy for floor 1.
+floor_1_avg_temp_c,Average temperature proxy for floor 1.
+floor_1_water_lph,"Water use proxy for cooling floor 1, liters/hour."
+floor_1_efficiency_score,Efficiency score for floor 1; higher is better.
+floor_1_maintenance_rack_percent,Percentage of racks under maintenance on floor 1.
+floor_2_avg_rack_utilization_percent,Average rack utilization on floor 2.
+floor_2_available_capacity_percent,Available rack capacity on floor 2.
+floor_2_avg_power_kw,Average power use proxy for floor 2.
+floor_2_avg_temp_c,Average temperature proxy for floor 2.
+floor_2_water_lph,"Water use proxy for cooling floor 2, liters/hour."
+floor_2_efficiency_score,Efficiency score for floor 2; higher is better.
+floor_2_maintenance_rack_percent,Percentage of racks under maintenance on floor 2.
+floor_3_avg_rack_utilization_percent,Average rack utilization on floor 3.
+floor_3_available_capacity_percent,Available rack capacity on floor 3.
+floor_3_avg_power_kw,Average power use proxy for floor 3.
+floor_3_avg_temp_c,Average temperature proxy for floor 3.
+floor_3_water_lph,"Water use proxy for cooling floor 3, liters/hour."
+floor_3_efficiency_score,Efficiency score for floor 3; higher is better.
+floor_3_maintenance_rack_percent,Percentage of racks under maintenance on floor 3.
+floor_4_avg_rack_utilization_percent,Average rack utilization on floor 4.
+floor_4_available_capacity_percent,Available rack capacity on floor 4.
+floor_4_avg_power_kw,Average power use proxy for floor 4.
+floor_4_avg_temp_c,Average temperature proxy for floor 4.
+floor_4_water_lph,"Water use proxy for cooling floor 4, liters/hour."
+floor_4_efficiency_score,Efficiency score for floor 4; higher is better.
+floor_4_maintenance_rack_percent,Percentage of racks under maintenance on floor 4.
+floor_5_avg_rack_utilization_percent,Average rack utilization on floor 5.
+floor_5_available_capacity_percent,Available rack capacity on floor 5.
+floor_5_avg_power_kw,Average power use proxy for floor 5.
+floor_5_avg_temp_c,Average temperature proxy for floor 5.
+floor_5_water_lph,"Water use proxy for cooling floor 5, liters/hour."
+floor_5_efficiency_score,Efficiency score for floor 5; higher is better.
+floor_5_maintenance_rack_percent,Percentage of racks under maintenance on floor 5.
+floor_6_avg_rack_utilization_percent,Average rack utilization on floor 6.
+floor_6_available_capacity_percent,Available rack capacity on floor 6.
+floor_6_avg_power_kw,Average power use proxy for floor 6.
+floor_6_avg_temp_c,Average temperature proxy for floor 6.
+floor_6_water_lph,"Water use proxy for cooling floor 6, liters/hour."
+floor_6_efficiency_score,Efficiency score for floor 6; higher is better.
+floor_6_maintenance_rack_percent,Percentage of racks under maintenance on floor 6.
+floor_7_avg_rack_utilization_percent,Average rack utilization on floor 7.
+floor_7_available_capacity_percent,Available rack capacity on floor 7.
+floor_7_avg_power_kw,Average power use proxy for floor 7.
+floor_7_avg_temp_c,Average temperature proxy for floor 7.
+floor_7_water_lph,"Water use proxy for cooling floor 7, liters/hour."
+floor_7_efficiency_score,Efficiency score for floor 7; higher is better.
+floor_7_maintenance_rack_percent,Percentage of racks under maintenance on floor 7.
+floor_8_avg_rack_utilization_percent,Average rack utilization on floor 8.
+floor_8_available_capacity_percent,Available rack capacity on floor 8.
+floor_8_avg_power_kw,Average power use proxy for floor 8.
+floor_8_avg_temp_c,Average temperature proxy for floor 8.
+floor_8_water_lph,"Water use proxy for cooling floor 8, liters/hour."
+floor_8_efficiency_score,Efficiency score for floor 8; higher is better.
+floor_8_maintenance_rack_percent,Percentage of racks under maintenance on floor 8.
+floor_9_avg_rack_utilization_percent,Average rack utilization on floor 9.
+floor_9_available_capacity_percent,Available rack capacity on floor 9.
+floor_9_avg_power_kw,Average power use proxy for floor 9.
+floor_9_avg_temp_c,Average temperature proxy for floor 9.
+floor_9_water_lph,"Water use proxy for cooling floor 9, liters/hour."
+floor_9_efficiency_score,Efficiency score for floor 9; higher is better.
+floor_9_maintenance_rack_percent,Percentage of racks under maintenance on floor 9.
+floor_10_avg_rack_utilization_percent,Average rack utilization on floor 10.
+floor_10_available_capacity_percent,Available rack capacity on floor 10.
+floor_10_avg_power_kw,Average power use proxy for floor 10.
+floor_10_avg_temp_c,Average temperature proxy for floor 10.
+floor_10_water_lph,"Water use proxy for cooling floor 10, liters/hour."
+floor_10_efficiency_score,Efficiency score for floor 10; higher is better.
+floor_10_maintenance_rack_percent,Percentage of racks under maintenance on floor 10.
