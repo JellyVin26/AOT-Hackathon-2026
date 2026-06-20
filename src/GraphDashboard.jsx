@@ -16,7 +16,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import energyData from './original_10floor_energy_co2_waste_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json';
 import './GraphDashboard.css';
 
 const TIME_OPTIONS = [
@@ -25,34 +25,87 @@ const TIME_OPTIONS = [
   { id: 'monthly', label: 'Monthly' },
 ];
 
-const GRAPH_TABS = [
+const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'floors', label: 'Floors' },
-  { id: 'rooms', label: 'Rooms' },
-  { id: 'waste', label: 'Waste' },
+  { id: 'areas', label: 'Areas' },
+  { id: 'infrastructure', label: 'Infrastructure' },
+];
+
+const METRICS = [
+  {
+    id: 'energy',
+    label: 'Energy',
+    kpiLabel: 'Total Energy Usage',
+    dataKey: 'totalEnergy',
+    floorKey: 'energy',
+    roomKey: 'energy',
+    unit: 'kWh',
+    color: '#38bdf8',
+    icon: 'power',
+  },
+  {
+    id: 'co2',
+    label: 'CO₂',
+    kpiLabel: 'CO₂ Emission',
+    dataKey: 'totalCo2',
+    floorKey: 'co2',
+    roomKey: 'co2',
+    unit: 'kgCO₂e',
+    color: '#34d399',
+    icon: 'co2',
+  },
+  {
+    id: 'waste',
+    label: 'Waste',
+    kpiLabel: 'Total Waste',
+    dataKey: 'totalWaste',
+    floorKey: 'waste',
+    roomKey: 'waste',
+    unit: 'kg',
+    color: '#a78bfa',
+    icon: 'waste',
+  },
+  {
+    id: 'water',
+    label: 'Water',
+    kpiLabel: 'Total Water Usage',
+    dataKey: 'totalWater',
+    floorKey: 'water',
+    roomKey: 'water',
+    unit: 'L',
+    color: '#2dd4bf',
+    icon: 'water',
+  },
+  {
+    id: 'temperature',
+    label: 'Temperature',
+    kpiLabel: 'Avg Building Temperature',
+    dataKey: 'avgTemperature',
+    floorKey: 'temperature',
+    roomKey: 'temperature',
+    unit: '°C',
+    color: '#fb923c',
+    icon: 'temp',
+    decimals: 1,
+  },
 ];
 
 const palette = {
   energy: '#38bdf8',
   co2: '#34d399',
   waste: '#a78bfa',
-  rubbish: '#f87171',
-  food: '#fbbf24',
-  recycle: '#22c55e',
-  ewaste: '#94a3b8',
   water: '#2dd4bf',
   temp: '#fb923c',
   ac: '#38bdf8',
   light: '#fbbf24',
   plug: '#f472b6',
-  floorA: '#38bdf8',
-  floorB: '#818cf8',
-  floorC: '#34d399',
-  floorD: '#fbbf24',
-  floorE: '#f472b6',
+  rubbish: '#f87171',
+  food: '#fbbf24',
+  recycle: '#22c55e',
+  ewaste: '#94a3b8',
 };
 
-const chartMargin = { top: 12, right: 14, left: 0, bottom: 0 };
+const floorColours = ['#38bdf8', '#818cf8', '#34d399', '#fbbf24', '#f472b6'];
 
 const formatCompact = (value) =>
   new Intl.NumberFormat('en', {
@@ -82,27 +135,30 @@ function summariseRow(row) {
     label: row.date.slice(5),
     totalEnergy: 0,
     totalCo2: 0,
-    totalWater: 0,
     totalWaste: 0,
-    rubbishWaste: 0,
-    foodWaste: 0,
-    recyclableWaste: 0,
-    eWaste: 0,
+    totalWater: 0,
     temperatureSum: 0,
     temperatureCount: 0,
     ac: 0,
     light: 0,
     plug: 0,
+    rubbishWaste: 0,
+    foodWaste: 0,
+    recyclableWaste: 0,
+    eWaste: 0,
     floorEnergy: {},
     floorCo2: {},
-    floorWater: {},
     floorWaste: {},
+    floorWater: {},
+    floorAc: {},
+    floorLight: {},
+    floorPlug: {},
     floorTempSum: {},
     floorTempCount: {},
     roomEnergy: {},
     roomCo2: {},
-    roomWater: {},
     roomWaste: {},
+    roomWater: {},
     roomTempSum: {},
     roomTempCount: {},
   };
@@ -113,47 +169,50 @@ function summariseRow(row) {
     Object.entries(level.rooms || {}).forEach(([roomId, room]) => {
       const energy = Number(room.total) || 0;
       const co2 = Number(room.co2EmissionKg) || energy * 0.758;
-      const water = Number(room.water) || 0;
       const waste = Number(room.totalWasteKg) || Number(room.waste?.totalWasteKg) || 0;
+      const water = Number(room.water) || 0;
+      const temperature = Number(room.temperature);
+      const ac = Number(room.ac) || 0;
+      const light = Number(room.light) || 0;
+      const plug = Number(room.plug) || 0;
       const rubbishWaste = Number(room.rubbishWasteKg) || Number(room.waste?.rubbishWasteKg) || 0;
       const foodWaste = Number(room.foodWasteKg) || Number(room.waste?.foodWasteKg) || 0;
       const recyclableWaste = Number(room.recyclableWasteKg) || Number(room.waste?.recyclableWasteKg) || 0;
       const eWaste = Number(room.eWasteKg) || Number(room.waste?.eWasteKg) || 0;
-      const temp = Number(room.temperature);
-      const ac = Number(room.ac) || 0;
-      const light = Number(room.light) || 0;
-      const plug = Number(room.plug) || 0;
 
       summary.totalEnergy += energy;
       summary.totalCo2 += co2;
-      summary.totalWater += water;
       summary.totalWaste += waste;
+      summary.totalWater += water;
+      summary.ac += ac;
+      summary.light += light;
+      summary.plug += plug;
       summary.rubbishWaste += rubbishWaste;
       summary.foodWaste += foodWaste;
       summary.recyclableWaste += recyclableWaste;
       summary.eWaste += eWaste;
-      summary.ac += ac;
-      summary.light += light;
-      summary.plug += plug;
 
       summary.floorEnergy[levelId] = (summary.floorEnergy[levelId] || 0) + energy;
       summary.floorCo2[levelId] = (summary.floorCo2[levelId] || 0) + co2;
-      summary.floorWater[levelId] = (summary.floorWater[levelId] || 0) + water;
       summary.floorWaste[levelId] = (summary.floorWaste[levelId] || 0) + waste;
+      summary.floorWater[levelId] = (summary.floorWater[levelId] || 0) + water;
+      summary.floorAc[levelId] = (summary.floorAc[levelId] || 0) + ac;
+      summary.floorLight[levelId] = (summary.floorLight[levelId] || 0) + light;
+      summary.floorPlug[levelId] = (summary.floorPlug[levelId] || 0) + plug;
 
       summary.roomEnergy[roomId] = (summary.roomEnergy[roomId] || 0) + energy;
       summary.roomCo2[roomId] = (summary.roomCo2[roomId] || 0) + co2;
-      summary.roomWater[roomId] = (summary.roomWater[roomId] || 0) + water;
       summary.roomWaste[roomId] = (summary.roomWaste[roomId] || 0) + waste;
+      summary.roomWater[roomId] = (summary.roomWater[roomId] || 0) + water;
 
-      if (Number.isFinite(temp)) {
-        summary.temperatureSum += temp;
+      if (Number.isFinite(temperature)) {
+        summary.temperatureSum += temperature;
         summary.temperatureCount += 1;
 
-        summary.floorTempSum[levelId] = (summary.floorTempSum[levelId] || 0) + temp;
+        summary.floorTempSum[levelId] = (summary.floorTempSum[levelId] || 0) + temperature;
         summary.floorTempCount[levelId] = (summary.floorTempCount[levelId] || 0) + 1;
 
-        summary.roomTempSum[roomId] = (summary.roomTempSum[roomId] || 0) + temp;
+        summary.roomTempSum[roomId] = (summary.roomTempSum[roomId] || 0) + temperature;
         summary.roomTempCount[roomId] = (summary.roomTempCount[roomId] || 0) + 1;
       }
     });
@@ -166,32 +225,41 @@ function summariseRow(row) {
   return summary;
 }
 
+function combineObjectSum(target, source) {
+  Object.entries(source || {}).forEach(([key, value]) => {
+    target[key] = (target[key] || 0) + value;
+  });
+}
+
 function combineSummaries(rows, label) {
   const combined = {
     label,
     totalEnergy: 0,
     totalCo2: 0,
-    totalWater: 0,
     totalWaste: 0,
-    rubbishWaste: 0,
-    foodWaste: 0,
-    recyclableWaste: 0,
-    eWaste: 0,
+    totalWater: 0,
     temperatureSum: 0,
     temperatureCount: 0,
     ac: 0,
     light: 0,
     plug: 0,
+    rubbishWaste: 0,
+    foodWaste: 0,
+    recyclableWaste: 0,
+    eWaste: 0,
     floorEnergy: {},
     floorCo2: {},
-    floorWater: {},
     floorWaste: {},
+    floorWater: {},
+    floorAc: {},
+    floorLight: {},
+    floorPlug: {},
     floorTempSum: {},
     floorTempCount: {},
     roomEnergy: {},
     roomCo2: {},
-    roomWater: {},
     roomWaste: {},
+    roomWater: {},
     roomTempSum: {},
     roomTempCount: {},
   };
@@ -199,65 +267,33 @@ function combineSummaries(rows, label) {
   rows.forEach((row) => {
     combined.totalEnergy += row.totalEnergy;
     combined.totalCo2 += row.totalCo2;
-    combined.totalWater += row.totalWater;
     combined.totalWaste += row.totalWaste;
-    combined.rubbishWaste += row.rubbishWaste;
-    combined.foodWaste += row.foodWaste;
-    combined.recyclableWaste += row.recyclableWaste;
-    combined.eWaste += row.eWaste;
+    combined.totalWater += row.totalWater;
     combined.temperatureSum += row.temperatureSum;
     combined.temperatureCount += row.temperatureCount;
     combined.ac += row.ac;
     combined.light += row.light;
     combined.plug += row.plug;
+    combined.rubbishWaste += row.rubbishWaste;
+    combined.foodWaste += row.foodWaste;
+    combined.recyclableWaste += row.recyclableWaste;
+    combined.eWaste += row.eWaste;
 
-    Object.entries(row.floorEnergy).forEach(([key, value]) => {
-      combined.floorEnergy[key] = (combined.floorEnergy[key] || 0) + value;
-    });
-
-    Object.entries(row.floorCo2).forEach(([key, value]) => {
-      combined.floorCo2[key] = (combined.floorCo2[key] || 0) + value;
-    });
-
-    Object.entries(row.floorWater).forEach(([key, value]) => {
-      combined.floorWater[key] = (combined.floorWater[key] || 0) + value;
-    });
-
-    Object.entries(row.floorWaste).forEach(([key, value]) => {
-      combined.floorWaste[key] = (combined.floorWaste[key] || 0) + value;
-    });
-
-    Object.entries(row.floorTempSum).forEach(([key, value]) => {
-      combined.floorTempSum[key] = (combined.floorTempSum[key] || 0) + value;
-    });
-
-    Object.entries(row.floorTempCount).forEach(([key, value]) => {
-      combined.floorTempCount[key] = (combined.floorTempCount[key] || 0) + value;
-    });
-
-    Object.entries(row.roomEnergy).forEach(([key, value]) => {
-      combined.roomEnergy[key] = (combined.roomEnergy[key] || 0) + value;
-    });
-
-    Object.entries(row.roomCo2).forEach(([key, value]) => {
-      combined.roomCo2[key] = (combined.roomCo2[key] || 0) + value;
-    });
-
-    Object.entries(row.roomWater).forEach(([key, value]) => {
-      combined.roomWater[key] = (combined.roomWater[key] || 0) + value;
-    });
-
-    Object.entries(row.roomWaste).forEach(([key, value]) => {
-      combined.roomWaste[key] = (combined.roomWaste[key] || 0) + value;
-    });
-
-    Object.entries(row.roomTempSum).forEach(([key, value]) => {
-      combined.roomTempSum[key] = (combined.roomTempSum[key] || 0) + value;
-    });
-
-    Object.entries(row.roomTempCount).forEach(([key, value]) => {
-      combined.roomTempCount[key] = (combined.roomTempCount[key] || 0) + value;
-    });
+    combineObjectSum(combined.floorEnergy, row.floorEnergy);
+    combineObjectSum(combined.floorCo2, row.floorCo2);
+    combineObjectSum(combined.floorWaste, row.floorWaste);
+    combineObjectSum(combined.floorWater, row.floorWater);
+    combineObjectSum(combined.floorAc, row.floorAc);
+    combineObjectSum(combined.floorLight, row.floorLight);
+    combineObjectSum(combined.floorPlug, row.floorPlug);
+    combineObjectSum(combined.floorTempSum, row.floorTempSum);
+    combineObjectSum(combined.floorTempCount, row.floorTempCount);
+    combineObjectSum(combined.roomEnergy, row.roomEnergy);
+    combineObjectSum(combined.roomCo2, row.roomCo2);
+    combineObjectSum(combined.roomWaste, row.roomWaste);
+    combineObjectSum(combined.roomWater, row.roomWater);
+    combineObjectSum(combined.roomTempSum, row.roomTempSum);
+    combineObjectSum(combined.roomTempCount, row.roomTempCount);
   });
 
   combined.avgTemperature = combined.temperatureCount
@@ -270,9 +306,7 @@ function combineSummaries(rows, label) {
 function aggregateData(timeUnit) {
   const daily = energyData.map(summariseRow);
 
-  if (timeUnit === 'daily') {
-    return daily;
-  }
+  if (timeUnit === 'daily') return daily;
 
   const buckets = new Map();
 
@@ -301,6 +335,7 @@ function aggregateData(timeUnit) {
 
 function getFloorRows(data) {
   const latest = data[data.length - 1] || {};
+
   return Object.keys(latest.floorEnergy || {})
     .sort((a, b) => Number(a.replace('Level_', '')) - Number(b.replace('Level_', '')))
     .map((levelId) => {
@@ -309,11 +344,14 @@ function getFloorRows(data) {
       const tempCount = latest.floorTempCount?.[levelId] || 0;
 
       return {
-        name: `Floor ${floorNumber}`,
+        floor: `Floor ${floorNumber}`,
         energy: latest.floorEnergy[levelId] || 0,
         co2: latest.floorCo2[levelId] || 0,
-        water: latest.floorWater[levelId] || 0,
         waste: latest.floorWaste[levelId] || 0,
+        water: latest.floorWater[levelId] || 0,
+        ac: latest.floorAc[levelId] || 0,
+        light: latest.floorLight[levelId] || 0,
+        plug: latest.floorPlug[levelId] || 0,
         temperature: tempCount ? tempSum / tempCount : 0,
       };
     });
@@ -321,6 +359,7 @@ function getFloorRows(data) {
 
 function getRoomRows(data) {
   const latest = data[data.length - 1] || {};
+
   return Object.keys(latest.roomEnergy || {})
     .sort()
     .map((roomId) => {
@@ -328,17 +367,26 @@ function getRoomRows(data) {
       const tempCount = latest.roomTempCount?.[roomId] || 0;
 
       return {
-        name: roomId.replace('Room_', 'Room '),
+        room: roomId.replace('Room_', 'Room '),
         energy: latest.roomEnergy[roomId] || 0,
         co2: latest.roomCo2[roomId] || 0,
-        water: latest.roomWater[roomId] || 0,
         waste: latest.roomWaste[roomId] || 0,
+        water: latest.roomWater[roomId] || 0,
         temperature: tempCount ? tempSum / tempCount : 0,
       };
     });
 }
 
 function KpiIcon({ type }) {
+  if (type === 'water') {
+    return (
+      <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
+        <path d="M12 3.2C9.2 6.5 6.5 10.2 6.5 13.3C6.5 16.7 9 19.5 12 19.5C15 19.5 17.5 16.7 17.5 13.3C17.5 10.2 14.8 6.5 12 3.2Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9.8 13.8C10.1 15.1 11 16 12.3 16.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
   if (type === 'co2') {
     return (
       <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
@@ -352,9 +400,7 @@ function KpiIcon({ type }) {
     return (
       <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
         <path d="M8 8H16L15.3 20H8.7L8 8Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M6.5 8H17.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        <path d="M9.5 8L10 5H14L14.5 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M10.5 11V17M13.5 11V17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M6.5 8H17.5M9.5 8L10 5H14L14.5 8M10.5 11V17M13.5 11V17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
@@ -362,16 +408,15 @@ function KpiIcon({ type }) {
   if (type === 'temp') {
     return (
       <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
-        <path d="M10 14.7V5.8C10 4.3 11.1 3.2 12.6 3.2C14.1 3.2 15.2 4.3 15.2 5.8V14.7C16.1 15.4 16.7 16.4 16.7 17.6C16.7 19.8 14.9 21.5 12.6 21.5C10.3 21.5 8.5 19.8 8.5 17.6C8.5 16.4 9.1 15.4 10 14.7Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M12.6 7.2V17.2" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-        <circle cx="12.6" cy="17.7" r="1.5" fill="currentColor" />
+        <path d="M10 14.7V5.8C10 4.3 11.1 3.2 12.6 3.2C14.1 3.2 15.2 4.3 15.2 5.8V14.7C16.1 15.4 16.7 16.4 16.7 17.6C16.7 19.8 14.9 21.5 12.6 21.5C10.3 21.5 8.5 19.8 8.5 17.6C8.5 16.4 9.1 15.4 10 14.7Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12.6 7.2V17.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     );
   }
 
   return (
     <svg viewBox="0 0 24 24" className="graph-kpi-svg" aria-hidden="true">
-      <path d="M13.2 2.8L5.6 13H11L9.9 21.2L18.4 10.6H12.8L13.2 2.8Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.2 2.8L5.6 13H11L9.9 21.2L18.4 10.6H12.8L13.2 2.8Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -388,41 +433,47 @@ function ToggleButton({ active, onClick, children }) {
   );
 }
 
-function GraphCard({ title, description, children, className = '' }) {
+function MetricButton({ metric, active, onClick }) {
   return (
-    <section className={`graph-card ${className}`}>
-      <div className="graph-card-header">
-        <div>
-          <h3>{title}</h3>
-          {description ? <p>{description}</p> : null}
-        </div>
-      </div>
-      <div className="graph-card-body">{children}</div>
-    </section>
+    <button
+      type="button"
+      className={`graph-metric-nav-button ${active ? 'graph-metric-nav-button-active' : ''}`}
+      onClick={onClick}
+      style={{ '--metric-color': metric.color }}
+    >
+      <span>{metric.label}</span>
+    </button>
   );
 }
 
-function KpiCard({ label, value, unit, previous, type, decimals = 0 }) {
+function KpiCard({ metric, value, previous, active, onClick }) {
   const hasPrevious = typeof previous === 'number' && previous !== 0;
   const delta = hasPrevious ? ((value - previous) / previous) * 100 : 0;
   const rising = delta > 0;
-  const bad = rising;
+  const decimals = metric.decimals || 0;
 
   return (
-    <div className="graph-kpi-card">
+    <button
+      type="button"
+      className={`graph-kpi-card graph-kpi-card-clickable ${active ? 'graph-kpi-card-active' : ''}`}
+      onClick={onClick}
+      style={{ '--metric-color': metric.color }}
+    >
       <div className="graph-kpi-top">
-        <span className={`graph-icon-box graph-icon-${type}`}>
-          <KpiIcon type={type} />
+        <span className={`graph-icon-box graph-icon-${metric.icon}`}>
+          <KpiIcon type={metric.icon} />
         </span>
-        <span>{label}</span>
+        <span>{metric.kpiLabel}</span>
       </div>
+
       <div className="graph-kpi-value">
         <span>{formatNumber(value, decimals)}</span>
-        <small>{unit}</small>
+        <small>{metric.unit}</small>
       </div>
+
       <div className="graph-kpi-delta">
         {hasPrevious ? (
-          <span className={bad ? 'delta-bad' : 'delta-good'}>
+          <span className={rising ? 'delta-bad' : 'delta-good'}>
             {rising ? '+' : ''}
             {formatNumber(delta, 1)}%
           </span>
@@ -431,7 +482,21 @@ function KpiCard({ label, value, unit, previous, type, decimals = 0 }) {
         )}
         <span>vs. previous period</span>
       </div>
-    </div>
+    </button>
+  );
+}
+
+function GraphCard({ title, description, children, className = '' }) {
+  return (
+    <section className={`graph-card graph-main-chart-card ${className}`}>
+      <div className="graph-card-header">
+        <div>
+          <h3>{title}</h3>
+          {description ? <p>{description}</p> : null}
+        </div>
+      </div>
+      <div className="graph-card-body">{children}</div>
+    </section>
   );
 }
 
@@ -452,106 +517,93 @@ function GraphTooltip({ active, payload, label }) {
   );
 }
 
-function OverviewCharts({ data }) {
+function OverviewTab({ data, floorRows, activeMetric }) {
   return (
-    <div className="graph-grid graph-grid-overview">
+    <div className="graph-chart-grid-two">
       <GraphCard
-        title="Energy and CO₂ Emission Trend"
-        description="CO₂ is calculated from the original 10-floor energy dataset"
-        className="graph-span-3"
+        title={`${activeMetric.label} Trend Overview`}
+        description="Click Energy, CO₂, Waste or Temperature above to change this chart."
       >
-        <ResponsiveContainer width="100%" height={315}>
-          <AreaChart data={data} margin={chartMargin}>
+        <ResponsiveContainer width="100%" height={360}>
+          <AreaChart data={data} margin={{ top: 12, right: 22, left: 4, bottom: 0 }}>
+            <defs>
+              <linearGradient id="selectedMetricFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={activeMetric.color} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={activeMetric.color} stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
             <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
             <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
             <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
             <Tooltip content={<GraphTooltip />} />
-            <Area type="monotone" dataKey="totalEnergy" name="Energy" stroke={palette.energy} fill={palette.energy} fillOpacity={0.15} strokeWidth={2.5} />
-            <Area type="monotone" dataKey="totalCo2" name="CO₂ emission" stroke={palette.co2} fill={palette.co2} fillOpacity={0.09} strokeWidth={2.5} />
+            <Area
+              type="monotone"
+              dataKey={activeMetric.dataKey}
+              name={activeMetric.label}
+              stroke={activeMetric.color}
+              fill="url(#selectedMetricFill)"
+              strokeWidth={3}
+              dot={{ r: 3 }}
+              activeDot={{ r: 6 }}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </GraphCard>
 
       <GraphCard
-        title="Temperature vs Energy"
-        description="Supporting demo temperature trend against energy usage"
-        className="graph-span-2"
+        title={`${activeMetric.label} Per-Floor Breakdown`}
+        description="Latest selected period comparison across all 10 floors."
       >
-        <ResponsiveContainer width="100%" height={315}>
-          <ComposedChart data={data} margin={chartMargin}>
+        <ResponsiveContainer width="100%" height={360}>
+          <BarChart data={floorRows} margin={{ top: 12, right: 22, left: 4, bottom: 0 }}>
             <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
-            <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} />
-            <Tooltip content={<GraphTooltip />} />
-            <Bar dataKey="totalEnergy" name="Energy" fill={palette.energy} fillOpacity={0.55} radius={[5, 5, 0, 0]} />
-            <Line dataKey="avgTemperature" name="Temperature" stroke={palette.temp} strokeWidth={2.5} dot={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </GraphCard>
-    </div>
-  );
-}
-
-function FloorsCharts({ data }) {
-  const floorRows = getFloorRows(data);
-  const colours = [palette.floorA, palette.floorB, palette.floorC, palette.floorD, palette.floorE];
-
-  return (
-    <div className="graph-grid graph-grid-overview">
-      <GraphCard
-        title="10-Floor Energy Comparison"
-        description="Original 10-floor energy usage by floor"
-        className="graph-span-3"
-      >
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart data={floorRows} margin={chartMargin}>
-            <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
-            <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="floor" stroke="#94a3b8" tick={{ fontSize: 11 }} />
             <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
             <Tooltip content={<GraphTooltip />} />
-            <Bar dataKey="energy" name="Energy" radius={[6, 6, 0, 0]}>
+            <Bar dataKey={activeMetric.floorKey} name={activeMetric.label} radius={[7, 7, 0, 0]}>
               {floorRows.map((row, index) => (
-                <Cell key={row.name} fill={colours[index % colours.length]} />
+                <Cell key={row.floor} fill={index % 2 === 0 ? activeMetric.color : floorColours[index % floorColours.length]} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </GraphCard>
-
-      <GraphCard
-        title="CO₂ Emission by Floor"
-        description="Calculated from each floor's energy usage"
-        className="graph-span-2"
-      >
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart data={floorRows} margin={chartMargin}>
-            <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
-            <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
-            <Tooltip content={<GraphTooltip />} />
-            <Bar dataKey="co2" name="CO₂ emission" fill={palette.co2} radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </GraphCard>
     </div>
   );
 }
 
-function RoomsCharts({ data }) {
-  const roomRows = getRoomRows(data);
+function AreasTab({ roomRows, activeMetric }) {
+  const pieRows = roomRows.map((room) => ({
+    name: room.room,
+    value: room[activeMetric.roomKey],
+  }));
 
   return (
-    <div className="graph-grid graph-grid-overview">
+    <div className="graph-chart-grid-two">
       <GraphCard
-        title="Room CO₂ Emission"
-        description="CO₂ grouped by room type across all 10 floors"
-        className="graph-span-2"
+        title={`Area Comparison by ${activeMetric.label}`}
+        description="Room/area level comparison across the selected period."
       >
-        <ResponsiveContainer width="100%" height={330}>
+        <ResponsiveContainer width="100%" height={340}>
+          <BarChart data={roomRows} margin={{ top: 12, right: 22, left: 4, bottom: 0 }}>
+            <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
+            <XAxis dataKey="room" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+            <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
+            <Tooltip content={<GraphTooltip />} />
+            <Bar dataKey={activeMetric.roomKey} name={activeMetric.label} fill={activeMetric.color} radius={[7, 7, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </GraphCard>
+
+      <GraphCard
+        title={`${activeMetric.label} Area Share`}
+        description="How each room type contributes to the selected metric."
+      >
+        <ResponsiveContainer width="100%" height={340}>
           <PieChart>
-            <Pie data={roomRows} dataKey="co2" nameKey="name" innerRadius={58} outerRadius={108} paddingAngle={4}>
-              {roomRows.map((row, index) => (
-                <Cell key={row.name} fill={[palette.floorA, palette.floorB, palette.floorC, palette.floorD, palette.floorE][index % 5]} />
+            <Pie data={pieRows} dataKey="value" nameKey="name" innerRadius={65} outerRadius={116} paddingAngle={4}>
+              {pieRows.map((row, index) => (
+                <Cell key={row.name} fill={floorColours[index % floorColours.length]} />
               ))}
             </Pie>
             <Tooltip content={<GraphTooltip />} />
@@ -559,33 +611,12 @@ function RoomsCharts({ data }) {
           </PieChart>
         </ResponsiveContainer>
       </GraphCard>
-
-      <GraphCard
-        title="Equipment Load Breakdown"
-        description="Air conditioning, lighting and plug load from the original energy dataset"
-        className="graph-span-3"
-      >
-        <ResponsiveContainer width="100%" height={330}>
-          <BarChart data={data} margin={chartMargin}>
-            <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
-            <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
-            <Tooltip content={<GraphTooltip />} />
-            <Legend />
-            <Bar dataKey="ac" name="AC Load" stackId="equipment" fill={palette.ac} />
-            <Bar dataKey="light" name="Lighting" stackId="equipment" fill={palette.light} />
-            <Bar dataKey="plug" name="Plug Load" stackId="equipment" fill={palette.plug} radius={[5, 5, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </GraphCard>
     </div>
   );
 }
 
-
-function WasteCharts({ data }) {
+function InfrastructureTab({ data, floorRows }) {
   const latest = data[data.length - 1] || {};
-  const floorRows = getFloorRows(data);
   const wasteBreakdown = [
     { name: 'Rubbish', value: latest.rubbishWaste || 0 },
     { name: 'Food waste', value: latest.foodWaste || 0 },
@@ -594,31 +625,33 @@ function WasteCharts({ data }) {
   ];
 
   return (
-    <div className="graph-grid graph-grid-overview">
+    <div className="graph-chart-grid-two">
       <GraphCard
-        title="Waste Generation Trend"
-        description="Generated waste values linked to the original 10-floor energy usage"
-        className="graph-span-3"
+        title="Infrastructure Load Breakdown"
+        description="AC load, lighting and plug load contribution."
       >
-        <ResponsiveContainer width="100%" height={330}>
-          <AreaChart data={data} margin={chartMargin}>
+        <ResponsiveContainer width="100%" height={350}>
+          <ComposedChart data={data} margin={{ top: 12, right: 22, left: 4, bottom: 0 }}>
             <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
             <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
             <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
             <Tooltip content={<GraphTooltip />} />
-            <Area type="monotone" dataKey="totalWaste" name="Total waste" stroke={palette.waste} fill={palette.waste} fillOpacity={0.16} strokeWidth={2.5} />
-          </AreaChart>
+            <Legend />
+            <Bar dataKey="ac" name="AC Load" stackId="load" fill={palette.ac} />
+            <Bar dataKey="light" name="Lighting" stackId="load" fill={palette.light} />
+            <Bar dataKey="plug" name="Plug Load" stackId="load" fill={palette.plug} radius={[7, 7, 0, 0]} />
+            <Line dataKey="avgTemperature" name="Avg Temperature" stroke={palette.temp} strokeWidth={2.5} dot={false} />
+          </ComposedChart>
         </ResponsiveContainer>
       </GraphCard>
 
       <GraphCard
-        title="Waste Type Breakdown"
-        description="Rubbish, food waste, recyclable waste and e-waste"
-        className="graph-span-2"
+        title="Waste Infrastructure Split"
+        description="Waste categories from the selected period."
       >
-        <ResponsiveContainer width="100%" height={330}>
+        <ResponsiveContainer width="100%" height={350}>
           <PieChart>
-            <Pie data={wasteBreakdown} dataKey="value" nameKey="name" innerRadius={58} outerRadius={108} paddingAngle={4}>
+            <Pie data={wasteBreakdown} dataKey="value" nameKey="name" innerRadius={65} outerRadius={116} paddingAngle={4}>
               <Cell fill={palette.rubbish} />
               <Cell fill={palette.food} />
               <Cell fill={palette.recycle} />
@@ -631,17 +664,20 @@ function WasteCharts({ data }) {
       </GraphCard>
 
       <GraphCard
-        title="Waste by Floor"
-        description="Latest selected period total waste by floor"
-        className="graph-span-5"
+        title="Per-Floor Load Contribution"
+        description="AC, lighting and plug load by floor."
+        className="graph-wide-card"
       >
-        <ResponsiveContainer width="100%" height={330}>
-          <BarChart data={floorRows} margin={chartMargin}>
+        <ResponsiveContainer width="100%" height={350}>
+          <BarChart data={floorRows} margin={{ top: 12, right: 22, left: 4, bottom: 0 }}>
             <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" strokeDasharray="3 3" />
-            <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="floor" stroke="#94a3b8" tick={{ fontSize: 11 }} />
             <YAxis stroke="#94a3b8" tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
             <Tooltip content={<GraphTooltip />} />
-            <Bar dataKey="waste" name="Waste" fill={palette.waste} radius={[6, 6, 0, 0]} />
+            <Legend />
+            <Bar dataKey="ac" name="AC Load" stackId="floor" fill={palette.ac} />
+            <Bar dataKey="light" name="Lighting" stackId="floor" fill={palette.light} />
+            <Bar dataKey="plug" name="Plug Load" stackId="floor" fill={palette.plug} radius={[7, 7, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </GraphCard>
@@ -649,12 +685,16 @@ function WasteCharts({ data }) {
   );
 }
 
-
 export default function GraphDashboard() {
   const [timeUnit, setTimeUnit] = useState('weekly');
+  const [activeMetricId, setActiveMetricId] = useState('energy');
   const [activeTab, setActiveTab] = useState('overview');
 
+  const activeMetric = METRICS.find((metric) => metric.id === activeMetricId) || METRICS[0];
+
   const data = useMemo(() => aggregateData(timeUnit), [timeUnit]);
+  const floorRows = useMemo(() => getFloorRows(data), [data]);
+  const roomRows = useMemo(() => getRoomRows(data), [data]);
 
   const kpi = useMemo(() => {
     const current = data[data.length - 1];
@@ -663,33 +703,37 @@ export default function GraphDashboard() {
     if (!current) return null;
 
     return {
-      totalEnergy: current.totalEnergy,
-      totalCo2: current.totalCo2,
-      totalWaste: current.totalWaste,
-      avgTemp: current.avgTemperature,
-      previousEnergy: previous?.totalEnergy,
-      previousCo2: previous?.totalCo2,
-      previousWaste: previous?.totalWaste,
-      previousAvgTemp: previous?.avgTemperature,
+      energy: { value: current.totalEnergy, previous: previous?.totalEnergy },
+      co2: { value: current.totalCo2, previous: previous?.totalCo2 },
+      waste: { value: current.totalWaste, previous: previous?.totalWaste },
+      water: { value: current.totalWater, previous: previous?.totalWater },
+      temperature: { value: current.avgTemperature, previous: previous?.avgTemperature },
     };
   }, [data]);
 
   return (
     <div className="graph-dashboard">
-      <header className="graph-header">
+      <header className="graph-header graph-header-compact">
         <div className="graph-title-row">
           <div className="graph-logo-mark">S</div>
           <div>
             <h1>Sustainability Dashboard</h1>
-            <p>Energy, CO₂ emissions, waste and temperature insights from the original 10-floor dataset</p>
+            <p>Energy, CO₂ emissions, waste, water and temperature insights from the original 10-floor dataset</p>
           </div>
         </div>
 
-        <div className="graph-header-actions">
-          <span className="graph-mini-pill graph-power">Energy</span>
-          <span className="graph-mini-pill graph-water">CO₂</span>
-          <span className="graph-mini-pill graph-temp">Waste</span>
-          <span className="graph-mini-pill graph-temp">Temperature</span>
+        <div className="graph-header-actions graph-header-actions-wide">
+          <div className="graph-metric-nav">
+            {METRICS.map((metric) => (
+              <MetricButton
+                key={metric.id}
+                metric={metric}
+                active={activeMetricId === metric.id}
+                onClick={() => setActiveMetricId(metric.id)}
+              />
+            ))}
+          </div>
+
           <div className="graph-toggle-group">
             {TIME_OPTIONS.map((option) => (
               <ToggleButton
@@ -705,22 +749,24 @@ export default function GraphDashboard() {
       </header>
 
       {!kpi ? (
-        <div className="graph-state-card">Loading original 10-floor dataset…</div>
+        <div className="graph-state-card">Loading dashboard data…</div>
       ) : (
         <>
-          <div className="graph-kpi-grid">
-            <KpiCard label="Total Energy Usage" value={kpi.totalEnergy} unit="kWh" previous={kpi.previousEnergy} type="power" />
-            <KpiCard label="CO₂ Emission" value={kpi.totalCo2} unit="kgCO₂e" previous={kpi.previousCo2} type="co2" />
-            <KpiCard label="Total Waste" value={kpi.totalWaste} unit="kg" previous={kpi.previousWaste} type="waste" />
-            <KpiCard label="Avg Building Temperature" value={kpi.avgTemp} unit="°C" previous={kpi.previousAvgTemp} type="temp" decimals={1} />
+          <div className="graph-kpi-grid graph-kpi-grid-four">
+            {METRICS.map((metric) => (
+              <KpiCard
+                key={metric.id}
+                metric={metric}
+                value={kpi[metric.id].value}
+                previous={kpi[metric.id].previous}
+                active={activeMetricId === metric.id}
+                onClick={() => setActiveMetricId(metric.id)}
+              />
+            ))}
           </div>
 
-          <p className="graph-note">
-            Showing {timeUnit} data from the original 10-floor dataset · CO₂ factor: 0.758 kgCO₂e/kWh
-          </p>
-
-          <div className="graph-tabs">
-            {GRAPH_TABS.map((tab) => (
+          <div className="graph-tabs graph-main-tabs">
+            {TABS.map((tab) => (
               <ToggleButton
                 key={tab.id}
                 active={activeTab === tab.id}
@@ -731,13 +777,20 @@ export default function GraphDashboard() {
             ))}
           </div>
 
-          {activeTab === 'overview' && <OverviewCharts data={data} />}
-          {activeTab === 'floors' && <FloorsCharts data={data} />}
-          {activeTab === 'rooms' && <RoomsCharts data={data} />}
-          {activeTab === 'waste' && <WasteCharts data={data} />}
+          {activeTab === 'overview' && (
+            <OverviewTab data={data} floorRows={floorRows} activeMetric={activeMetric} />
+          )}
+
+          {activeTab === 'areas' && (
+            <AreasTab roomRows={roomRows} activeMetric={activeMetric} />
+          )}
+
+          {activeTab === 'infrastructure' && (
+            <InfrastructureTab data={data} floorRows={floorRows} />
+          )}
 
           <footer className="graph-footer">
-            Dataset source: original_10floor_energy_co2_waste_dataset.json · {energyData.length} daily records
+            Dataset source: original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json · {energyData.length} daily records
           </footer>
         </>
       )}

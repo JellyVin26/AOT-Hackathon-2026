@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import energyData from './original_10floor_energy_co2_waste_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json';
 import './AnomalyDetectionDashboard.css';
 
 const COLORS = {
@@ -424,7 +424,8 @@ export default function AnomalyDetectionDashboard() {
           <span className="anomaly-eyebrow">Original 10-floor dataset</span>
           <h1>Anomaly Detection Dashboard</h1>
           <p>
-            Detects unusual energy, CO₂ emission, waste, water and temperature patterns across the dashboard and 3D heatmap.
+            Detects unusual energy, CO₂ emission, waste, water and temperature patterns
+            using the same dataset as the dashboard and 3D heatmap.
           </p>
         </div>
 

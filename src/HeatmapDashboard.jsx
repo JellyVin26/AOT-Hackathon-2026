@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { create } from 'zustand';
-import energyData from './original_10floor_energy_co2_waste_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json';
 import './App.css';
 
 // ==========================================================
@@ -59,14 +59,14 @@ const DASHBOARD_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMac
 const levelConfigs = [
   { id: 'Level_1', label: 'Floor 1', y: 70, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D'] },
   { id: 'Level_2', label: 'Floor 2', y: 230, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D'] },
-  { id: 'Level_3', label: 'Floor 3', y: 390, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_4', label: 'Floor 4', y: 550, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_5', label: 'Floor 5', y: 710, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_6', label: 'Floor 6', y: 870, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_7', label: 'Floor 7', y: 1030, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_8', label: 'Floor 8', y: 1190, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_9', label: 'Floor 9', y: 1350, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
-  { id: 'Level_10', label: 'Floor 10', y: 1510, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_3', label: 'Floor 3', y: 390, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_4', label: 'Floor 4', y: 550, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_5', label: 'Floor 5', y: 710, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_6', label: 'Floor 6', y: 870, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_7', label: 'Floor 7', y: 1030, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_8', label: 'Floor 8', y: 1190, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_9', label: 'Floor 9', y: 1350, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_10', label: 'Floor 10', y: 1510, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
 ];
 
 const ROOM_ROTATION_DEG = -45;
@@ -119,7 +119,7 @@ const baseRoomTemplates = [
     labelOffsetZ: -20,
   },
   {
-    id: 'Room_E',
+    id: 'Room_D',
     label: 'Room E',
     zoneName: 'Zone 5',
     description: 'Additional Area',
@@ -804,7 +804,7 @@ function FieldLabel({ children }) {
 function SectionTitle({ title, subtitle }) {
   return (
     <div style={{ marginBottom: '12px' }}>
-      <div style={{ fontSize: '13px', fontWeight: 800 }}>{title}</div>
+      <div style={{ fontSize: '13px', fontWeight: 700 }}>{title}</div>
       <div style={{ marginTop: '4px', fontSize: '13px', color: '#94a3b8' }}>
         {subtitle}
       </div>
@@ -846,7 +846,7 @@ function StatCard({ label, value, helper, valueColor = '#f8fafc' }) {
         style={{
           marginTop: '8px',
           fontSize: '20px',
-          fontWeight: 800,
+          fontWeight: 700,
           color: valueColor,
         }}
       >
@@ -872,7 +872,7 @@ function InfoPill({ label, value }) {
       <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
         {label}
       </div>
-      <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 800 }}>
+      <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 700 }}>
         {value}
       </div>
     </div>
@@ -896,7 +896,7 @@ function HeatmapLegend() {
         backdropFilter: 'blur(8px)',
       }}
     >
-      <div style={{ fontSize: '13px', fontWeight: 800 }}>Heatmap Scale</div>
+      <div style={{ fontSize: '13px', fontWeight: 700 }}>Heatmap Scale</div>
       <div
         style={{
           marginTop: '10px',
@@ -1077,7 +1077,7 @@ export default function HeatmapDashboard() {
               }}
             >
               <div>
-                <div className="dashboard-main-title" style={{ fontSize: '20px', fontWeight: 800 }}>
+                <div className="dashboard-main-title" style={{ fontSize: '20px', fontWeight: 700 }}>
                   10 Floor Two-Month Energy Heatmap
                 </div>
                 <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '13px' }}>
@@ -1299,7 +1299,7 @@ export default function HeatmapDashboard() {
               <div style={{ fontSize: '12px', color: '#94a3b8' }}>
                 Now Viewing
               </div>
-              <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 800 }}>
+              <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 700 }}>
                 {selectedLevel.label} | {selectedRoom.label}
               </div>
               <div style={{ marginTop: '2px', fontSize: '12px', color: '#cbd5e1' }}>
