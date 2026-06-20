@@ -316,3 +316,33 @@
     padding: 22px;
   }
 }
+
+
+/* Anomaly typography refinement */
+.anomaly-dashboard {
+  font-family: var(--font-sans) !important;
+}
+
+.anomaly-dashboard h1,
+.anomaly-dashboard h2,
+.anomaly-dashboard h3 {
+  letter-spacing: -0.045em;
+  font-weight: 700;
+}
+
+.anomaly-dashboard p,
+.anomaly-dashboard span,
+.anomaly-dashboard button,
+.anomaly-dashboard select,
+.anomaly-dashboard table {
+  font-family: var(--font-sans) !important;
+}
+
+
+/* Softer anomaly headings */
+.anomaly-dashboard h1,
+.anomaly-dashboard h2,
+.anomaly-dashboard h3 {
+  font-weight: 700 !important;
+  letter-spacing: -0.035em !important;
+}
