@@ -1,8 +1,8 @@
-# Sustainable Building Intelligence Dashboard
+# EcoVision
 
 ## Project Title and Description
 
-**Sustainable Building Intelligence Dashboard** is a web-based sustainability monitoring system that helps users understand building performance through interactive visual analytics.
+**EcoVision** is a web-based sustainability monitoring system that helps users understand building performance through interactive visual analytics.
 
 The system provides a combined dashboard for energy usage, CO₂ emissions, waste, water, temperature, anomaly detection, and 3D building heatmap visualisation.
 
