@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { create } from 'zustand';
-import energyData from './modelA_unified_10floor_dashboard_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_dataset.json';
 import './App.css';
 
 // ==========================================================
@@ -1272,7 +1272,7 @@ export default function HeatmapDashboard() {
                   10 Floor Two-Month Energy Heatmap
                 </div>
                 <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '13px' }}>
-                  Floors 1 to 7 use uploaded data. Floors 8 to 10 use generated similar data. July and August 2018 are included.
+                  Explore energy usage across all floors and rooms in the building.
                 </div>
               </div>
 
@@ -1423,7 +1423,7 @@ export default function HeatmapDashboard() {
                 </SegmentedButton>
               </div>
               <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '12px' }}>
-                Light View uses the merged GLB. The building and heatmap are rotated together so the heatmap stays aligned.
+                Light View is optimized for smoother rotation and performance, while Detailed View shows the full model with more detailed visuals.
               </div>
             </div>
 
