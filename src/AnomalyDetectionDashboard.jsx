@@ -15,27 +15,26 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import energyData from './modelA_unified_10floor_dashboard_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_dataset.json';
 import './AnomalyDetectionDashboard.css';
 
 const COLORS = {
   energy: '#38bdf8',
+  co2: '#34d399',
+  waste: '#a78bfa',
   water: '#2dd4bf',
   temp: '#fb923c',
-  workload: '#818cf8',
-  maintenance: '#f87171',
-  normal: '#34d399',
   warning: '#fbbf24',
+  danger: '#f87171',
 };
 
 const TYPE_COLORS = {
   'High energy anomaly': '#f87171',
-  'Low energy anomaly': '#34d399',
+  'High CO₂ anomaly': '#34d399',
+  'Waste anomaly': '#a78bfa',
+  'Water anomaly': '#2dd4bf',
   'Temperature anomaly': '#fb923c',
-  'Water usage anomaly': '#2dd4bf',
-  'Workload anomaly': '#818cf8',
-  'Maintenance anomaly': '#fbbf24',
-  'Pattern anomaly': '#94a3b8',
+  Normal: '#94a3b8',
 };
 
 function formatNumber(value, decimals = 0) {
@@ -62,7 +61,7 @@ function mean(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function std(values) {
+function standardDeviation(values) {
   if (values.length <= 1) return 1;
   const avg = mean(values);
   const variance =
@@ -78,6 +77,11 @@ function percentile(values, p) {
   return sorted[index];
 }
 
+function zScore(value, stat) {
+  if (!stat || !stat.std) return 0;
+  return (Number(value || 0) - stat.mean) / stat.std;
+}
+
 function getFloorRows() {
   const rows = [];
 
@@ -85,47 +89,48 @@ function getFloorRows() {
     Object.entries(day.levels || {}).forEach(([levelId, level]) => {
       if (!level?.available) return;
 
-      let totalEnergy = 0;
-      let totalWater = 0;
+      let energy = 0;
+      let co2 = 0;
+      let water = 0;
+      let waste = 0;
       let tempSum = 0;
       let tempCount = 0;
-      let ac = 0;
-      let light = 0;
-      let plug = 0;
 
       Object.values(level.rooms || {}).forEach((room) => {
-        totalEnergy += Number(room.total) || 0;
-        totalWater += Number(room.water) || 0;
-        ac += Number(room.ac) || 0;
-        light += Number(room.light) || 0;
-        plug += Number(room.plug) || 0;
+        const roomEnergy = Number(room.total) || 0;
+        const roomCo2 = Number(room.co2EmissionKg) || roomEnergy * 0.758;
+        const roomWater = Number(room.water) || 0;
+        const roomWaste =
+          Number(room.totalWasteKg) ||
+          Number(room.waste?.totalWasteKg) ||
+          0;
+        const roomTemp = Number(room.temperature);
 
-        const temp = Number(room.temperature);
-        if (Number.isFinite(temp)) {
-          tempSum += temp;
+        energy += roomEnergy;
+        co2 += roomCo2;
+        water += roomWater;
+        waste += roomWaste;
+
+        if (Number.isFinite(roomTemp)) {
+          tempSum += roomTemp;
           tempCount += 1;
         }
       });
 
-      const telemetry = level.acbTelemetry || {};
       const floorNumber = Number(levelId.replace('Level_', ''));
 
       rows.push({
+        id: `${day.date}-${levelId}`,
         date: day.date,
         label: dateLabel(day.date),
         floorId: levelId,
         floor: `Floor ${floorNumber}`,
         floorNumber,
-        energy: totalEnergy,
-        water: totalWater,
-        temperature: tempCount ? tempSum / tempCount : Number(telemetry.avg_temp_c) || 0,
-        rackUtilization: Number(telemetry.avg_rack_utilization_percent) || 0,
-        availableCapacity: Number(telemetry.available_capacity_percent) || 0,
-        efficiency: Number(telemetry.efficiency_score) || 0,
-        maintenance: Number(telemetry.maintenance_rack_percent) || 0,
-        ac,
-        light,
-        plug,
+        energy,
+        co2,
+        water,
+        waste,
+        temperature: tempCount ? tempSum / tempCount : 0,
       });
     });
   });
@@ -133,111 +138,94 @@ function getFloorRows() {
   return rows;
 }
 
-function explainAnomaly(row, stats) {
-  const zEnergy = (row.energy - stats.energy.mean) / stats.energy.std;
-  const zWater = (row.water - stats.water.mean) / stats.water.std;
-  const zTemp = (row.temperature - stats.temperature.mean) / stats.temperature.std;
-  const zRack = (row.rackUtilization - stats.rackUtilization.mean) / stats.rackUtilization.std;
-  const zMaintenance = (row.maintenance - stats.maintenance.mean) / stats.maintenance.std;
-
-  const checks = [
-    { key: 'energy', abs: Math.abs(zEnergy), z: zEnergy },
-    { key: 'water', abs: Math.abs(zWater), z: zWater },
-    { key: 'temperature', abs: Math.abs(zTemp), z: zTemp },
-    { key: 'rack', abs: Math.abs(zRack), z: zRack },
-    { key: 'maintenance', abs: Math.abs(zMaintenance), z: zMaintenance },
-  ];
-
-  const dominant = checks.sort((a, b) => b.abs - a.abs)[0];
-
-  if (dominant.key === 'energy') {
-    return {
-      type: dominant.z >= 0 ? 'High energy anomaly' : 'Low energy anomaly',
-      reason:
-        dominant.z >= 0
-          ? 'Energy usage is much higher than the normal floor pattern.'
-          : 'Energy usage is much lower than the normal floor pattern.',
-      action:
-        dominant.z >= 0
-          ? 'Check AC schedule, plug load and after-hours equipment usage.'
-          : 'Check whether sensors, meters or equipment are reporting correctly.',
-    };
-  }
-
-  if (dominant.key === 'water') {
-    return {
-      type: 'Water usage anomaly',
-      reason: 'Water usage is far from the normal daily floor pattern.',
-      action: 'Check possible leakage, cooling water demand or abnormal facility use.',
-    };
-  }
-
-  if (dominant.key === 'temperature') {
-    return {
-      type: 'Temperature anomaly',
-      reason: 'Average floor temperature is outside the expected pattern.',
-      action: 'Review cooling performance, thermostat settings and AC operation.',
-    };
-  }
-
-  if (dominant.key === 'rack') {
-    return {
-      type: 'Workload anomaly',
-      reason: 'Rack utilization is unusual compared with the building pattern.',
-      action: 'Review workload distribution and available capacity for this floor.',
-    };
-  }
-
-  if (dominant.key === 'maintenance') {
-    return {
-      type: 'Maintenance anomaly',
-      reason: 'Maintenance rack percentage is unusually high.',
-      action: 'Prioritize this floor for equipment inspection or maintenance planning.',
-    };
-  }
-
-  return {
-    type: 'Pattern anomaly',
-    reason: 'The floor pattern is unusual across multiple indicators.',
-    action: 'Review energy, water, temperature and workload readings together.',
-  };
-}
-
-function buildAnomalyData() {
-  const rows = getFloorRows();
-
-  const metrics = ['energy', 'water', 'temperature', 'rackUtilization', 'maintenance'];
+function getStats(rows) {
+  const metrics = ['energy', 'co2', 'waste', 'water', 'temperature'];
   const stats = {};
 
   metrics.forEach((metric) => {
     const values = rows.map((row) => Number(row[metric]) || 0);
     stats[metric] = {
       mean: mean(values),
-      std: std(values),
+      std: standardDeviation(values),
     };
   });
 
+  return stats;
+}
+
+function classifyAnomaly(row, scores) {
+  const checks = [
+    { key: 'energy', label: 'High energy anomaly', value: scores.energy },
+    { key: 'co2', label: 'High CO₂ anomaly', value: scores.co2 },
+    { key: 'waste', label: 'Waste anomaly', value: scores.waste },
+    { key: 'water', label: 'Water anomaly', value: scores.water },
+    { key: 'temperature', label: 'Temperature anomaly', value: scores.temperature },
+  ].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+
+  const main = checks[0];
+
+  if (main.key === 'energy') {
+    return {
+      type: main.label,
+      reason: 'Energy usage is much higher than the normal floor pattern.',
+      action: 'Check AC load, plug load and after-hours equipment usage.',
+    };
+  }
+
+  if (main.key === 'co2') {
+    return {
+      type: main.label,
+      reason: 'CO₂ emission is high because the energy usage is high.',
+      action: 'Reduce unnecessary electricity use and check high-consumption equipment.',
+    };
+  }
+
+  if (main.key === 'waste') {
+    return {
+      type: main.label,
+      reason: 'Waste generation is higher than the normal floor pattern.',
+      action: 'Check rubbish, food waste, recyclable waste and e-waste disposal.',
+    };
+  }
+
+  if (main.key === 'water') {
+    return {
+      type: main.label,
+      reason: 'Water usage is higher than the normal floor pattern.',
+      action: 'Check possible leakage, cleaning schedule or facility usage.',
+    };
+  }
+
+  return {
+    type: 'Temperature anomaly',
+    reason: 'Average temperature is outside the expected pattern.',
+    action: 'Review cooling performance and thermostat settings.',
+  };
+}
+
+function buildAnomalyData() {
+  const rows = getFloorRows();
+  const stats = getStats(rows);
+
   const scoredRows = rows.map((row) => {
-    const energyZ = (row.energy - stats.energy.mean) / stats.energy.std;
-    const waterZ = (row.water - stats.water.mean) / stats.water.std;
-    const tempZ = (row.temperature - stats.temperature.mean) / stats.temperature.std;
-    const rackZ = (row.rackUtilization - stats.rackUtilization.mean) / stats.rackUtilization.std;
-    const maintenanceZ = (row.maintenance - stats.maintenance.mean) / stats.maintenance.std;
+    const scores = {
+      energy: zScore(row.energy, stats.energy),
+      co2: zScore(row.co2, stats.co2),
+      waste: zScore(row.waste, stats.waste),
+      water: zScore(row.water, stats.water),
+      temperature: zScore(row.temperature, stats.temperature),
+    };
 
     const anomalyScore =
-      Math.abs(energyZ) * 0.35 +
-      Math.abs(waterZ) * 0.15 +
-      Math.abs(tempZ) * 0.2 +
-      Math.abs(rackZ) * 0.2 +
-      Math.abs(maintenanceZ) * 0.1;
+      Math.abs(scores.energy) * 0.3 +
+      Math.abs(scores.co2) * 0.25 +
+      Math.abs(scores.waste) * 0.25 +
+      Math.abs(scores.water) * 0.1 +
+      Math.abs(scores.temperature) * 0.1;
 
     return {
       ...row,
-      energyZ,
-      waterZ,
-      tempZ,
-      rackZ,
-      maintenanceZ,
+      scores,
       anomalyScore,
     };
   });
@@ -250,7 +238,7 @@ function buildAnomalyData() {
   const finalRows = scoredRows.map((row) => {
     const isAnomaly = row.anomalyScore >= threshold;
     const explanation = isAnomaly
-      ? explainAnomaly(row, stats)
+      ? classifyAnomaly(row, row.scores)
       : {
           type: 'Normal',
           reason: 'No unusual pattern detected.',
@@ -282,9 +270,9 @@ function KpiCard({ label, value, unit, tone }) {
   );
 }
 
-function ChartCard({ title, description, children, wide = false }) {
+function ChartCard({ title, description, children }) {
   return (
-    <section className={`anomaly-card ${wide ? 'anomaly-card-wide' : ''}`}>
+    <section className="anomaly-card">
       <div className="anomaly-card-header">
         <h3>{title}</h3>
         {description ? <p>{description}</p> : null}
@@ -312,13 +300,15 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 function TypePill({ type }) {
+  const color = TYPE_COLORS[type] || '#94a3b8';
+
   return (
     <span
       className="anomaly-type-pill"
       style={{
-        color: TYPE_COLORS[type] || '#94a3b8',
-        borderColor: `${TYPE_COLORS[type] || '#94a3b8'}66`,
-        backgroundColor: `${TYPE_COLORS[type] || '#94a3b8'}1f`,
+        color,
+        borderColor: `${color}66`,
+        backgroundColor: `${color}1f`,
       }}
     >
       {type}
@@ -332,19 +322,25 @@ export default function AnomalyDetectionDashboard() {
   const anomalyData = useMemo(() => buildAnomalyData(), []);
   const allRows = anomalyData.rows;
 
-  const floorOptions = useMemo(
-    () => ['All', ...Array.from(new Set(allRows.map((row) => row.floor))).sort((a, b) => Number(a.replace('Floor ', '')) - Number(b.replace('Floor ', '')))],
-    [allRows]
-  );
+  const floorOptions = useMemo(() => {
+    const floors = Array.from(new Set(allRows.map((row) => row.floor))).sort(
+      (a, b) => Number(a.replace('Floor ', '')) - Number(b.replace('Floor ', ''))
+    );
+    return ['All', ...floors];
+  }, [allRows]);
 
   const visibleRows = useMemo(() => {
     if (selectedFloor === 'All') return allRows;
     return allRows.filter((row) => row.floor === selectedFloor);
   }, [allRows, selectedFloor]);
 
-  const anomalies = visibleRows
-    .filter((row) => row.isAnomaly)
-    .sort((a, b) => b.anomalyScore - a.anomalyScore);
+  const anomalies = useMemo(
+    () =>
+      visibleRows
+        .filter((row) => row.isAnomaly)
+        .sort((a, b) => b.anomalyScore - a.anomalyScore),
+    [visibleRows]
+  );
 
   const dailyTrend = useMemo(() => {
     const map = new Map();
@@ -355,19 +351,19 @@ export default function AnomalyDetectionDashboard() {
           date: row.date,
           label: row.label,
           anomalyCount: 0,
-          normalCount: 0,
-          avgScore: 0,
           scoreSum: 0,
-          rowCount: 0,
+          records: 0,
         });
       }
 
       const item = map.get(row.date);
-      item.rowCount += 1;
+      item.records += 1;
       item.scoreSum += row.anomalyScore;
-      if (row.isAnomaly) item.anomalyCount += 1;
-      else item.normalCount += 1;
-      item.avgScore = item.scoreSum / item.rowCount;
+      item.avgScore = item.scoreSum / item.records;
+
+      if (row.isAnomaly) {
+        item.anomalyCount += 1;
+      }
     });
 
     return Array.from(map.values());
@@ -382,24 +378,25 @@ export default function AnomalyDetectionDashboard() {
           floor: row.floor,
           floorNumber: row.floorNumber,
           anomalyCount: 0,
-          avgEnergy: 0,
-          avgTemperature: 0,
-          scoreSum: 0,
           energySum: 0,
-          tempSum: 0,
+          co2Sum: 0,
+          wasteSum: 0,
+          scoreSum: 0,
           records: 0,
         });
       }
 
       const item = map.get(row.floor);
       item.records += 1;
-      item.scoreSum += row.anomalyScore;
       item.energySum += row.energy;
-      item.tempSum += row.temperature;
-      if (row.isAnomaly) item.anomalyCount += 1;
-      item.avgEnergy = item.energySum / item.records;
-      item.avgTemperature = item.tempSum / item.records;
+      item.co2Sum += row.co2;
+      item.wasteSum += row.waste;
+      item.scoreSum += row.anomalyScore;
       item.avgScore = item.scoreSum / item.records;
+
+      if (row.isAnomaly) {
+        item.anomalyCount += 1;
+      }
     });
 
     return Array.from(map.values()).sort((a, b) => a.floorNumber - b.floorNumber);
@@ -416,17 +413,18 @@ export default function AnomalyDetectionDashboard() {
   }, [anomalies]);
 
   const critical = anomalies[0];
-  const anomalyRate = visibleRows.length ? (anomalies.length / visibleRows.length) * 100 : 0;
+  const anomalyRate = visibleRows.length
+    ? (anomalies.length / visibleRows.length) * 100
+    : 0;
 
   return (
     <div className="anomaly-dashboard">
       <header className="anomaly-hero">
         <div>
-          <span className="anomaly-eyebrow">Model A unified dataset</span>
+          <span className="anomaly-eyebrow">Original 10-floor dataset</span>
           <h1>Anomaly Detection Dashboard</h1>
           <p>
-            Detects unusual sustainability patterns using the same 10-floor data used by the
-            main dashboard and 3D heatmap.
+            Detects unusual energy, CO₂ emission, waste, water and temperature patterns across the dashboard and 3D heatmap.
           </p>
         </div>
 
@@ -465,12 +463,12 @@ export default function AnomalyDetectionDashboard() {
               <strong>{formatCompact(critical.energy)} kWh</strong>
             </div>
             <div>
-              <span>Water</span>
-              <strong>{formatCompact(critical.water)} L</strong>
+              <span>CO₂</span>
+              <strong>{formatCompact(critical.co2)} kg</strong>
             </div>
             <div>
-              <span>Temperature</span>
-              <strong>{formatNumber(critical.temperature, 1)} °C</strong>
+              <span>Waste</span>
+              <strong>{formatCompact(critical.waste)} kg</strong>
             </div>
             <div>
               <span>Score</span>
@@ -492,8 +490,7 @@ export default function AnomalyDetectionDashboard() {
       <div className="anomaly-chart-grid">
         <ChartCard
           title="Daily Anomaly Trend"
-          description="Number of detected floor anomalies per day"
-          wide
+          description="Number of detected anomalies per day"
         >
           <ResponsiveContainer width="100%" height={310}>
             <ComposedChart data={dailyTrend} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
@@ -501,7 +498,7 @@ export default function AnomalyDetectionDashboard() {
               <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
               <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="anomalyCount" name="Anomalies" fill={COLORS.maintenance} radius={[6, 6, 0, 0]} />
+              <Bar dataKey="anomalyCount" name="Anomalies" fill={COLORS.danger} radius={[6, 6, 0, 0]} />
               <Line dataKey="avgScore" name="Avg score" stroke={COLORS.warning} strokeWidth={2.5} dot={false} />
               <ReferenceLine y={anomalyData.threshold} stroke={COLORS.warning} strokeDasharray="5 5" />
             </ComposedChart>
@@ -511,7 +508,6 @@ export default function AnomalyDetectionDashboard() {
         <ChartCard
           title="Anomalies by Floor"
           description="Which floors show the most unusual patterns"
-          wide
         >
           <ResponsiveContainer width="100%" height={310}>
             <BarChart data={floorSummary} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
@@ -521,7 +517,7 @@ export default function AnomalyDetectionDashboard() {
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="anomalyCount" name="Anomaly count" radius={[6, 6, 0, 0]}>
                 {floorSummary.map((row, index) => (
-                  <Cell key={row.floor} fill={index % 2 === 0 ? COLORS.energy : COLORS.workload} />
+                  <Cell key={row.floor} fill={index % 2 === 0 ? COLORS.energy : COLORS.waste} />
                 ))}
               </Bar>
             </BarChart>
@@ -530,7 +526,7 @@ export default function AnomalyDetectionDashboard() {
 
         <ChartCard
           title="Anomaly Type Split"
-          description="Breakdown by main cause"
+          description="Breakdown by the main detected cause"
         >
           <ResponsiveContainer width="100%" height={285}>
             <PieChart>
@@ -546,8 +542,8 @@ export default function AnomalyDetectionDashboard() {
         </ChartCard>
 
         <ChartCard
-          title="Floor Score Profile"
-          description="Average anomaly score by floor"
+          title="Average Score by Floor"
+          description="Higher score means stronger unusual pattern"
         >
           <ResponsiveContainer width="100%" height={285}>
             <BarChart data={floorSummary} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
@@ -575,23 +571,23 @@ export default function AnomalyDetectionDashboard() {
                 <th>Floor</th>
                 <th>Type</th>
                 <th>Energy</th>
-                <th>Water</th>
-                <th>Temp</th>
+                <th>CO₂</th>
+                <th>Waste</th>
                 <th>Score</th>
                 <th>Recommended action</th>
               </tr>
             </thead>
             <tbody>
               {anomalies.slice(0, 20).map((row) => (
-                <tr key={`${row.date}-${row.floor}`}>
+                <tr key={row.id}>
                   <td>{row.date}</td>
                   <td>{row.floor}</td>
                   <td>
                     <TypePill type={row.anomalyType} />
                   </td>
                   <td>{formatCompact(row.energy)} kWh</td>
-                  <td>{formatCompact(row.water)} L</td>
-                  <td>{formatNumber(row.temperature, 1)} °C</td>
+                  <td>{formatCompact(row.co2)} kg</td>
+                  <td>{formatCompact(row.waste)} kg</td>
                   <td>{formatNumber(row.anomalyScore, 2)}</td>
                   <td>{row.action}</td>
                 </tr>
@@ -602,7 +598,7 @@ export default function AnomalyDetectionDashboard() {
       </section>
 
       <footer className="anomaly-footer">
-        Detection method: weighted z-score across energy, water, temperature, rack utilization and maintenance indicators.
+        Detection method: weighted z-score across energy, CO₂ emission, waste, water and temperature indicators.
       </footer>
     </div>
   );
