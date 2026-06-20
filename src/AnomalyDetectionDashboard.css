@@ -1,0 +1,348 @@
+.anomaly-dashboard {
+  width: 100%;
+  min-height: 100%;
+  padding: 26px;
+  color: var(--color-fg, #e2e8f0);
+}
+
+.anomaly-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 22px;
+  padding: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(56, 189, 248, 0.18), transparent 35%),
+    radial-gradient(circle at 92% 10%, rgba(129, 140, 248, 0.18), transparent 38%),
+    rgba(15, 23, 42, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.anomaly-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 10px;
+  color: #38bdf8;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.anomaly-hero h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: clamp(28px, 4vw, 42px);
+  letter-spacing: -0.04em;
+}
+
+.anomaly-hero p {
+  max-width: 780px;
+  margin: 12px 0 0;
+  color: #94a3b8;
+  line-height: 1.65;
+}
+
+.anomaly-filter {
+  min-width: 210px;
+  display: grid;
+  gap: 8px;
+}
+
+.anomaly-filter span {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.anomaly-filter select {
+  color: #e2e8f0;
+  background: rgba(30, 41, 59, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.anomaly-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.anomaly-kpi-card {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+}
+
+.anomaly-kpi-card span,
+.anomaly-kpi-card small {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.anomaly-kpi-card strong {
+  display: block;
+  margin-top: 8px;
+  color: #f8fafc;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.anomaly-kpi-card.warning {
+  border-color: rgba(251, 191, 36, 0.32);
+}
+
+.anomaly-kpi-card.danger {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.anomaly-critical-card {
+  margin-top: 18px;
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  background:
+    linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(15, 23, 42, 0.93)),
+    rgba(15, 23, 42, 0.92);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+}
+
+.anomaly-critical-card h2 {
+  margin: 0 0 12px;
+  color: #f8fafc;
+}
+
+.anomaly-critical-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.anomaly-critical-grid div {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.anomaly-critical-grid span {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.anomaly-critical-grid strong {
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.anomaly-critical-text {
+  margin-top: 18px;
+  color: #cbd5e1;
+  line-height: 1.65;
+}
+
+.anomaly-critical-text p {
+  margin: 8px 0;
+}
+
+.anomaly-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.anomaly-card,
+.anomaly-table-card {
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.anomaly-card-wide {
+  grid-column: span 1;
+}
+
+.anomaly-card-header {
+  margin-bottom: 16px;
+}
+
+.anomaly-card-header h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 19px;
+}
+
+.anomaly-card-header p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  line-height: 1.55;
+}
+
+.anomaly-chart-body {
+  width: 100%;
+  min-height: 260px;
+}
+
+.anomaly-tooltip {
+  min-width: 180px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(2, 6, 23, 0.94);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+}
+
+.anomaly-tooltip strong {
+  display: block;
+  color: #f8fafc;
+  margin-bottom: 8px;
+}
+
+.anomaly-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.anomaly-tooltip-row span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.anomaly-tooltip-row p {
+  margin: 0;
+  flex: 1;
+}
+
+.anomaly-type-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.anomaly-table-card {
+  margin-top: 18px;
+}
+
+.anomaly-table-wrap {
+  overflow-x: auto;
+}
+
+.anomaly-table-wrap table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+}
+
+.anomaly-table-wrap th,
+.anomaly-table-wrap td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  text-align: left;
+  color: #cbd5e1;
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.anomaly-table-wrap th {
+  color: #f8fafc;
+  font-weight: 800;
+  background: rgba(30, 41, 59, 0.7);
+}
+
+.anomaly-footer {
+  margin: 18px 0 4px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+}
+
+.recharts-wrapper,
+.recharts-text {
+  font-family: var(--font-sans, Inter, system-ui, sans-serif) !important;
+}
+
+@media (max-width: 1100px) {
+  .anomaly-kpi-grid,
+  .anomaly-critical-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .anomaly-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .anomaly-hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .anomaly-dashboard {
+    padding: 16px;
+  }
+
+  .anomaly-kpi-grid,
+  .anomaly-critical-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .anomaly-hero {
+    padding: 22px;
+  }
+}
+
+
+/* Anomaly typography refinement */
+.anomaly-dashboard {
+  font-family: var(--font-sans) !important;
+}
+
+.anomaly-dashboard h1,
+.anomaly-dashboard h2,
+.anomaly-dashboard h3 {
+  letter-spacing: -0.045em;
+  font-weight: 700;
+}
+
+.anomaly-dashboard p,
+.anomaly-dashboard span,
+.anomaly-dashboard button,
+.anomaly-dashboard select,
+.anomaly-dashboard table {
+  font-family: var(--font-sans) !important;
+}
+
+
+/* Softer anomaly headings */
+.anomaly-dashboard h1,
+.anomaly-dashboard h2,
+.anomaly-dashboard h3 {
+  font-weight: 700 !important;
+  letter-spacing: -0.035em !important;
+}
