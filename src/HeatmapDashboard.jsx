@@ -14,14 +14,14 @@ import {
   YAxis,
 } from 'recharts';
 import { create } from 'zustand';
-import energyData from './original_10floor_energy_co2_waste_ac_fixed_dataset.json';
+import energyData from './modelA_unified_10floor_dashboard_dataset.json';
 import './App.css';
 
 // ==========================================================
 // 1. State Management
 // ==========================================================
 const useStore = create((set) => ({
-  activeLevel: 'Level_1',
+  activeLevel: 'all', // 'all' means all floors, 'Level_N' means single floor
   activeRoom: 'Room_A',
   activeMetric: 'total',
   timeIndex: 0,
@@ -29,6 +29,7 @@ const useStore = create((set) => ({
   viewMode: 'current',
   buildingMode: 'light',
   periodMode: 'month',
+  showRoomLabels: true,
 
   setActiveLevel: (level) => set({ activeLevel: level, activeRoom: 'Room_A' }),
   setActiveRoom: (room) => set({ activeRoom: room }),
@@ -38,6 +39,7 @@ const useStore = create((set) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
   setBuildingMode: (mode) => set({ buildingMode: mode }),
   setPeriodMode: (mode) => set({ periodMode: mode }),
+  setShowRoomLabels: (value) => set({ showRoomLabels: value }),
 }));
 
 // ==========================================================
@@ -49,7 +51,7 @@ const BUILDING_SCALE = 0.003;
 // Rotate the whole scene together so the heatmap stays inside the building.
 const SCENE_ROTATION_Y = Math.PI / 4;
 
-const DASHBOARD_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const DASHBOARD_FONT = 'var(--font-sans)';
 
 // ==========================================================
 // 3. Level and Room Mapping
@@ -375,13 +377,24 @@ const getAggregatedRoomValue = (
 };
 
 const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourIndex) => {
+  const isAll = levelId === 'all';
+
   if (periodMode === 'hour') {
-    const selectedDayValue = getRoomValue(
-      energyData[timeIndex],
-      levelId,
-      roomId,
-      metric
-    );
+    let selectedDayValue = null;
+    if (isAll) {
+      let sum = 0;
+      let hasData = false;
+      levelConfigs.forEach((level) => {
+        const val = getRoomValue(energyData[timeIndex], level.id, roomId, metric);
+        if (val !== null) {
+          sum += val;
+          hasData = true;
+        }
+      });
+      selectedDayValue = hasData ? sum : null;
+    } else {
+      selectedDayValue = getRoomValue(energyData[timeIndex], levelId, roomId, metric);
+    }
 
     if (selectedDayValue === null) {
       return [];
@@ -397,10 +410,24 @@ const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourInde
 
   const rows = getPeriodRows(timeIndex, periodMode);
 
-  return rows.map((row) => ({
-    date: row.date.slice(5),
-    value: getRoomValue(row, levelId, roomId, metric),
-  }));
+  return rows.map((row) => {
+    let value = null;
+    if (isAll) {
+      let sum = 0;
+      let hasData = false;
+      levelConfigs.forEach((level) => {
+        const val = getRoomValue(row, level.id, roomId, metric);
+        if (val !== null) {
+          sum += val;
+          hasData = true;
+        }
+      });
+      value = hasData ? sum : null;
+    } else {
+      value = getRoomValue(row, levelId, roomId, metric);
+    }
+    return { date: row.date.slice(5), value };
+  });
 };
 
 const getPeriodDescription = (timeIndex, periodMode, hourIndex = 0) => {
@@ -488,12 +515,74 @@ const getMetricRange = (metric, periodMode = 'month') => {
   };
 };
 
-const getHeatmapColor = (value, metric, periodMode = 'month') => {
+// Distribution of values when a room's usage is SUMMED ACROSS ALL 10 FLOORS.
+// This is the correct comparison basis for "All Floors" mode, since the
+// displayed value there is itself a 10-floor total, not a single-floor value.
+const getMetricRangeAllFloors = (metric, periodMode = 'month') => {
+  const values = [];
+  const allRoomIds = Array.from(
+    new Set(levelConfigs.flatMap((level) => level.rooms))
+  );
+
+  const sumAcrossLevels = (roomId, index, hour) => {
+    let sum = 0;
+    let hasData = false;
+
+    levelConfigs.forEach((level) => {
+      const value =
+        periodMode === 'hour'
+          ? getAggregatedRoomValue(level.id, roomId, metric, index, periodMode, hour)
+          : getAggregatedRoomValue(level.id, roomId, metric, index, periodMode);
+
+      if (typeof value === 'number') {
+        sum += value;
+        hasData = true;
+      }
+    });
+
+    return hasData ? sum : null;
+  };
+
+  energyData.forEach((row, index) => {
+    allRoomIds.forEach((roomId) => {
+      if (periodMode === 'hour') {
+        for (let hour = 0; hour < 24; hour += 1) {
+          const total = sumAcrossLevels(roomId, index, hour);
+          if (total !== null) {
+            values.push(total);
+          }
+        }
+        return;
+      }
+
+      const total = sumAcrossLevels(roomId, index);
+      if (total !== null) {
+        values.push(total);
+      }
+    });
+  });
+
+  if (values.length === 0) {
+    return { min: 0, max: 1 };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  return {
+    min,
+    max: max === min ? min + 1 : max,
+  };
+};
+
+const getHeatmapColor = (value, metric, periodMode = 'month', isAllFloors = false) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return '#64748b';
   }
 
-  const { min, max } = getMetricRange(metric, periodMode);
+  const { min, max } = isAllFloors
+    ? getMetricRangeAllFloors(metric, periodMode)
+    : getMetricRange(metric, periodMode);
 
   const percentage = Math.min(
     1,
@@ -533,12 +622,14 @@ const predictNextValue = (levelId, room, metric, timeIndex) => {
   return currentValue;
 };
 
-const getRiskLabel = (value, metric, periodMode = 'month') => {
+const getRiskLabel = (value, metric, periodMode = 'month', isAllFloors = false) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return 'No data';
   }
 
-  const { min, max } = getMetricRange(metric, periodMode);
+  const { min, max } = isAllFloors
+    ? getMetricRangeAllFloors(metric, periodMode)
+    : getMetricRange(metric, periodMode);
   const percentage = (value - min) / (max - min);
 
   if (percentage < 0.35) return 'Low';
@@ -629,117 +720,130 @@ function RoomHeatmapOverlay() {
     hourIndex,
     viewMode,
     periodMode,
+    showRoomLabels,
     setActiveRoom,
   } = useStore();
 
-  const level = getLevelInfo(activeLevel);
-  const currentRow = energyData[timeIndex];
   const metricInfo = getMetricInfo(activeMetric);
-  const visibleRooms = getRoomsForLevel(activeLevel);
+  const isAllFloors = activeLevel === 'all';
+  // When a specific floor is selected, only show that floor; otherwise show all floors
+  const levelsToShow = isAllFloors
+    ? levelConfigs
+    : levelConfigs.filter((l) => l.id === activeLevel);
 
   return (
     <group>
-      {visibleRooms.map((room) => {
-        const currentValue = getAggregatedRoomValue(
-          activeLevel,
-          room.id,
-          activeMetric,
-          timeIndex,
-          periodMode,
-          hourIndex
-        );
+      {levelsToShow.map((level) => {
+        const visibleRooms = getRoomsForLevel(level.id);
 
-        const predictedValue = currentValue;
+        return visibleRooms.map((room) => {
+          const currentValue = getAggregatedRoomValue(
+            level.id,
+            room.id,
+            activeMetric,
+            timeIndex,
+            periodMode,
+            hourIndex
+          );
 
-        const valueToShow =
-          viewMode === 'predicted' ? predictedValue : currentValue;
+          const predictedValue = currentValue;
 
-        const isActive = activeRoom === room.id;
-        const roomColor = getHeatmapColor(valueToShow, activeMetric, periodMode);
+          const valueToShow =
+            viewMode === 'predicted' ? predictedValue : currentValue;
 
-        return (
-          <group key={room.id}>
-            <mesh
-              position={[room.x, level.y + 45, room.z]}
-              renderOrder={20}
-              frustumCulled={false}
-              rotation={[-Math.PI / 2, 0, 0]}
-              onClick={(event) => {
-                event.stopPropagation();
-                setActiveRoom(room.id);
-              }}
-            >
-              <planeGeometry args={room.size} />
-              <meshBasicMaterial
-                color={roomColor}
-                transparent
-                opacity={isActive ? 0.92 : 0.72}
-                side={DoubleSide}
-                depthWrite={false}
-                depthTest={false}
-                polygonOffset
-                polygonOffsetFactor={-4}
-              />
-            </mesh>
+          const isActive = activeRoom === room.id;
+          const roomColor = getHeatmapColor(valueToShow, activeMetric, periodMode);
 
-            <mesh
-              position={[room.x, level.y + 47, room.z]}
-              rotation={[-Math.PI / 2, 0, 0]}
-              renderOrder={21}
-              frustumCulled={false}
-            >
-              <planeGeometry args={room.size} />
-              <meshBasicMaterial
-                color="#ffffff"
-                transparent
-                opacity={isActive ? 0.5 : 0.24}
-                side={DoubleSide}
-                depthWrite={false}
-                depthTest={false}
-                wireframe
-              />
-            </mesh>
+          // Show only the selected room highlighted (dim others), regardless of
+          // whether a single floor or all floors are currently displayed.
+          const shouldDim = !isActive;
+          const roomOpacity = shouldDim ? 0.18 : (isActive ? 0.92 : 0.72);
+          const wireOpacity = shouldDim ? 0.06 : (isActive ? 0.5 : 0.24);
 
-            <Html
-              position={[
-                room.x + (room.labelOffsetX || 0),
-                level.y + 145,
-                room.z + (room.labelOffsetZ || 0),
-              ]}
-              center
-              distanceFactor={10}
-            >
-              <div
-                onClick={() => setActiveRoom(room.id)}
-                style={{
-                  background: isActive
-                    ? 'rgba(15, 23, 42, 0.96)'
-                    : 'rgba(15, 23, 42, 0.82)',
-                  color: '#ffffff',
-                  padding: '8px 10px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
-                  whiteSpace: 'nowrap',
-                  border: isActive
-                    ? '1px solid #60a5fa'
-                    : '1px solid rgba(148, 163, 184, 0.25)',
-                  cursor: 'pointer',
-                  boxShadow: isActive
-                    ? '0 0 18px rgba(96, 165, 250, 0.35)'
-                    : 'none',
+          return (
+            <group key={`${level.id}-${room.id}`}>
+              <mesh
+                position={[room.x, level.y + 45, room.z]}
+                renderOrder={20}
+                frustumCulled={false}
+                rotation={[-Math.PI / 2, 0, 0]}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveRoom(room.id);
                 }}
               >
-                <div style={{ fontWeight: 600 }}>{room.label}</div>
-                <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '2px' }}>
-                  {room.zoneName} | {room.description}
-                </div>
-                <div style={{ marginTop: '4px' }}>
-                  {metricInfo.label}: {valueToShow === null ? 'No data' : `${formatValue(valueToShow)} ${metricInfo.unit}`}
-                </div>
-              </div>
-            </Html>
-          </group>
-        );
+                <planeGeometry args={room.size} />
+                <meshBasicMaterial
+                  color={roomColor}
+                  transparent
+                  opacity={roomOpacity}
+                  side={DoubleSide}
+                  depthWrite={false}
+                  depthTest={false}
+                  polygonOffset
+                  polygonOffsetFactor={-4}
+                />
+              </mesh>
+
+              <mesh
+                position={[room.x, level.y + 47, room.z]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                renderOrder={21}
+                frustumCulled={false}
+              >
+                <planeGeometry args={room.size} />
+                <meshBasicMaterial
+                  color="#ffffff"
+                  transparent
+                  opacity={wireOpacity}
+                  side={DoubleSide}
+                  depthWrite={false}
+                  depthTest={false}
+                  wireframe
+                />
+              </mesh>
+
+              {showRoomLabels && (
+                <Html
+                  position={[
+                    room.x + (room.labelOffsetX || 0),
+                    level.y + 145,
+                    room.z + (room.labelOffsetZ || 0),
+                  ]}
+                  center
+                  distanceFactor={isAllFloors ? 10 : 15}
+                >
+                  <div
+                    onClick={() => setActiveRoom(room.id)}
+                    style={{
+                      background: isActive
+                        ? 'rgba(15, 23, 42, 0.96)'
+                        : 'rgba(15, 23, 42, 0.82)',
+                      color: '#ffffff',
+                      padding: isAllFloors ? '6px 8px' : '8px 12px',
+                      borderRadius: '10px',
+                      fontSize: isAllFloors ? '10px' : '12px',
+                      whiteSpace: 'nowrap',
+                      border: isActive
+                        ? '1px solid #60a5fa'
+                        : '1px solid rgba(148, 163, 184, 0.25)',
+                      cursor: 'pointer',
+                      boxShadow: isActive
+                        ? '0 0 18px rgba(96, 165, 250, 0.35)'
+                        : 'none',
+                      opacity: shouldDim ? 0.4 : 1,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{isAllFloors ? `${level.label} - ${room.label}` : room.label}</div>
+                    <div style={{ fontSize: isAllFloors ? '10px' : '11px', color: '#cbd5e1', marginTop: '1px' }}>
+                      {metricInfo.label}: {valueToShow === null ? 'No data' : `${formatValue(valueToShow)} ${metricInfo.unit}`}
+                    </div>
+                  </div>
+                </Html>
+              )}
+            </group>
+          );
+        });
       })}
     </group>
   );
@@ -747,23 +851,31 @@ function RoomHeatmapOverlay() {
 
 function LevelGuide() {
   const { activeLevel } = useStore();
-  const level = getLevelInfo(activeLevel);
+  const isAllFloors = activeLevel === 'all';
+  const levelsToShow = isAllFloors
+    ? levelConfigs
+    : levelConfigs.filter((l) => l.id === activeLevel);
 
   return (
-    <mesh
-      position={[1320, level.y + 45, -1080]}
-      rotation={[-Math.PI / 2, 0, 0]}
-    >
-      <planeGeometry args={[2640, 2640]} />
-      <meshBasicMaterial
-        color="#60a5fa"
-        transparent
-        opacity={0.08}
-        side={DoubleSide}
-        depthWrite={false}
-        depthTest={false}
-      />
-    </mesh>
+    <group>
+      {levelsToShow.map((level) => (
+        <mesh
+          key={level.id}
+          position={[1320, level.y + 45, -1080]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[2640, 2640]} />
+          <meshBasicMaterial
+            color="#60a5fa"
+            transparent
+            opacity={isAllFloors ? 0.04 : 0.08}
+            side={DoubleSide}
+            depthWrite={false}
+            depthTest={false}
+          />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -804,7 +916,7 @@ function FieldLabel({ children }) {
 function SectionTitle({ title, subtitle }) {
   return (
     <div style={{ marginBottom: '12px' }}>
-      <div style={{ fontSize: '13px', fontWeight: 700 }}>{title}</div>
+      <div style={{ fontSize: '13px', fontWeight: 800 }}>{title}</div>
       <div style={{ marginTop: '4px', fontSize: '13px', color: '#94a3b8' }}>
         {subtitle}
       </div>
@@ -836,6 +948,57 @@ function SegmentedButton({ active, onClick, children }) {
   );
 }
 
+function ToggleSwitch({ checked, onChange, label }) {
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '10px',
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
+    >
+      {label && (
+        <span style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>
+          {label}
+        </span>
+      )}
+      <span
+        role="switch"
+        aria-checked={checked}
+        style={{
+          position: 'relative',
+          width: '38px',
+          height: '22px',
+          borderRadius: '999px',
+          background: checked
+            ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
+            : 'rgba(100, 116, 139, 0.45)',
+          border: '1px solid rgba(148, 163, 184, 0.25)',
+          transition: 'background 0.18s ease',
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: '2px',
+            left: checked ? '18px' : '2px',
+            width: '16px',
+            height: '16px',
+            borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.35)',
+            transition: 'left 0.18s ease',
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
 function StatCard({ label, value, helper, valueColor = '#f8fafc' }) {
   return (
     <Card style={{ padding: '16px' }}>
@@ -846,7 +1009,7 @@ function StatCard({ label, value, helper, valueColor = '#f8fafc' }) {
         style={{
           marginTop: '8px',
           fontSize: '20px',
-          fontWeight: 700,
+          fontWeight: 800,
           color: valueColor,
         }}
       >
@@ -872,7 +1035,7 @@ function InfoPill({ label, value }) {
       <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
         {label}
       </div>
-      <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 700 }}>
+      <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 800 }}>
         {value}
       </div>
     </div>
@@ -896,7 +1059,7 @@ function HeatmapLegend() {
         backdropFilter: 'blur(8px)',
       }}
     >
-      <div style={{ fontSize: '13px', fontWeight: 700 }}>Heatmap Scale</div>
+      <div style={{ fontSize: '13px', fontWeight: 800 }}>Heatmap Scale</div>
       <div
         style={{
           marginTop: '10px',
@@ -942,6 +1105,7 @@ export default function HeatmapDashboard() {
     viewMode,
     periodMode,
     buildingMode,
+    showRoomLabels,
     setActiveLevel,
     setActiveRoom,
     setActiveMetric,
@@ -950,34 +1114,61 @@ export default function HeatmapDashboard() {
     setViewMode,
     setBuildingMode,
     setPeriodMode,
+    setShowRoomLabels,
   } = useStore();
 
   const metricInfo = getMetricInfo(activeMetric);
-  const visibleRooms = getRoomsForLevel(activeLevel);
+  const isAllFloors = activeLevel === 'all';
+  // For analytics panel: when "all floors" is selected, use Level_1 as default context
+  // The 3D view handles all floors independently
+  const analyticsLevelId = isAllFloors ? 'Level_1' : activeLevel;
+  const visibleRooms = getRoomsForLevel(analyticsLevelId);
   const resolvedRoomId = visibleRooms.some((room) => room.id === activeRoom)
     ? activeRoom
     : visibleRooms[0]?.id || 'Room_A';
 
-  const selectedLevel = getLevelInfo(activeLevel);
+  const selectedLevel = isAllFloors ? null : getLevelInfo(activeLevel);
   const selectedRoom =
     visibleRooms.find((item) => item.id === resolvedRoomId) || visibleRooms[0];
 
-  const currentValue = getAggregatedRoomValue(
-    activeLevel,
-    resolvedRoomId,
-    activeMetric,
-    timeIndex,
-    periodMode,
-    hourIndex
-  );
+  // For "all floors" mode, sum the room value across all floors
+  let currentValue = null;
+  if (isAllFloors) {
+    let sum = 0;
+    let hasData = false;
+    levelConfigs.forEach((level) => {
+      const val = getAggregatedRoomValue(
+        level.id,
+        resolvedRoomId,
+        activeMetric,
+        timeIndex,
+        periodMode,
+        hourIndex
+      );
+      if (val !== null) {
+        sum += val;
+        hasData = true;
+      }
+    });
+    currentValue = hasData ? sum : null;
+  } else {
+    currentValue = getAggregatedRoomValue(
+      activeLevel,
+      resolvedRoomId,
+      activeMetric,
+      timeIndex,
+      periodMode,
+      hourIndex
+    );
+  }
 
   const predictedValue = currentValue;
 
   const displayedValue =
     viewMode === 'predicted' ? predictedValue : currentValue;
 
-  const riskLabel = getRiskLabel(displayedValue, activeMetric, periodMode);
-  const valueColor = getHeatmapColor(displayedValue, activeMetric, periodMode);
+  const riskLabel = getRiskLabel(displayedValue, activeMetric, periodMode, isAllFloors);
+  const valueColor = getHeatmapColor(displayedValue, activeMetric, periodMode, isAllFloors);
   const delta =
     currentValue === null || predictedValue === null
       ? null
@@ -988,14 +1179,14 @@ export default function HeatmapDashboard() {
 
   const chartData = useMemo(() => {
     return buildChartData(
-      activeLevel,
+      isAllFloors ? 'all' : activeLevel,
       resolvedRoomId,
       activeMetric,
       timeIndex,
       periodMode,
       hourIndex
     );
-  }, [activeLevel, resolvedRoomId, activeMetric, timeIndex, periodMode, hourIndex]);
+  }, [isAllFloors, activeLevel, resolvedRoomId, activeMetric, timeIndex, periodMode, hourIndex]);
 
   const sliderMax = getSliderMax(periodMode);
   const sliderValue = getSliderValue(periodMode, timeIndex, hourIndex);
@@ -1077,11 +1268,11 @@ export default function HeatmapDashboard() {
               }}
             >
               <div>
-                <div className="dashboard-main-title" style={{ fontSize: '20px', fontWeight: 700 }}>
+                <div className="dashboard-main-title" style={{ fontSize: '20px', fontWeight: 800 }}>
                   10 Floor Two-Month Energy Heatmap
                 </div>
                 <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '13px' }}>
-                  
+                  Floors 1 to 7 use uploaded data. Floors 8 to 10 use generated similar data. July and August 2018 are included.
                 </div>
               </div>
 
@@ -1126,6 +1317,7 @@ export default function HeatmapDashboard() {
                   onChange={(event) => setActiveLevel(event.target.value)}
                   style={selectStyle}
                 >
+                  <option value="all">All Floors (1–10)</option>
                   {levelConfigs.map((level) => (
                     <option key={level.id} value={level.id}>
                       {level.label}
@@ -1135,7 +1327,7 @@ export default function HeatmapDashboard() {
               </div>
 
               <div>
-                <FieldLabel>Room</FieldLabel>
+                <FieldLabel>Room (click a label in 3D to select)</FieldLabel>
                 <select
                   value={resolvedRoomId}
                   onChange={(event) => setActiveRoom(event.target.value)}
@@ -1299,12 +1491,32 @@ export default function HeatmapDashboard() {
               <div style={{ fontSize: '12px', color: '#94a3b8' }}>
                 Now Viewing
               </div>
-              <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 700 }}>
-                {selectedLevel.label} | {selectedRoom.label}
+              <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 800 }}>
+                {activeLevel === 'all' ? `All Floors | ${selectedRoom.label}` : `${selectedLevel?.label || activeLevel} | ${selectedRoom.label}`}
               </div>
               <div style={{ marginTop: '2px', fontSize: '12px', color: '#cbd5e1' }}>
                 {metricInfo.label} {getPeriodLabel(periodMode).toLowerCase()} heatmap | {sliderLabel}
               </div>
+            </div>
+
+            <div
+              style={{
+                position: 'absolute',
+                top: 16,
+                right: 18,
+                zIndex: 20,
+                padding: '10px 12px',
+                borderRadius: '14px',
+                background: 'rgba(15, 23, 42, 0.86)',
+                border: '1px solid rgba(148, 163, 184, 0.16)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              <ToggleSwitch
+                checked={showRoomLabels}
+                onChange={setShowRoomLabels}
+                label="Room Info"
+              />
             </div>
 
             <Canvas
@@ -1368,7 +1580,7 @@ export default function HeatmapDashboard() {
                 label="Displayed Value"
                 value={displayedValue === null ? 'No data' : `${formatValue(displayedValue)} ${metricInfo.unit}`}
                 valueColor={valueColor}
-                helper={`${metricInfo.label} in ${selectedLevel.label}, ${selectedRoom.label}`}
+                helper={`${metricInfo.label} in ${selectedLevel?.label || 'All Floors'}, ${selectedRoom.label}`}
               />
               <StatCard
                 label="Risk Level"
@@ -1392,7 +1604,7 @@ export default function HeatmapDashboard() {
                 gap: '10px',
               }}
             >
-              <InfoPill label="Level" value={selectedLevel.label} />
+              <InfoPill label="Level" value={selectedLevel?.label || 'All Floors'} />
               <InfoPill label="Room" value={`${selectedRoom.label} | ${selectedRoom.zoneName}`} />
               <InfoPill label="Area" value={selectedRoom.description} />
               <InfoPill label="Metric" value={metricInfo.label} />
@@ -1414,8 +1626,8 @@ export default function HeatmapDashboard() {
               title="Energy Trend Chart"
               subtitle={
                 periodMode === 'total'
-                  ? `Total usage trend for ${selectedLevel.label}, ${selectedRoom.label}.`
-                  : `${getPeriodLabel(periodMode)} ${metricInfo.label.toLowerCase()} trend for ${selectedLevel.label}, ${selectedRoom.label}.`
+                  ? `Total usage trend for ${selectedLevel?.label || 'All Floors'}, ${selectedRoom.label}.`
+                  : `${getPeriodLabel(periodMode)} ${metricInfo.label.toLowerCase()} trend for ${selectedLevel?.label || 'All Floors'}, ${selectedRoom.label}.`
               }
             />
 
@@ -1491,7 +1703,7 @@ export default function HeatmapDashboard() {
               <StatCard
                 label="Selected Range Value"
                 value={predictedValue === null ? 'No data' : `${formatValue(predictedValue)} ${metricInfo.unit}`}
-                valueColor={getHeatmapColor(predictedValue, activeMetric, periodMode)}
+                valueColor={getHeatmapColor(predictedValue, activeMetric, periodMode, isAllFloors)}
                 helper="Calculated from the selected range"
               />
               <StatCard
