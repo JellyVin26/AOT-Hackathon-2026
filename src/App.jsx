@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import HeatmapDashboard from './HeatmapDashboard';
 import GraphDashboard from './GraphDashboard';
 import AnomalyDetectionDashboard from './AnomalyDetectionDashboard';
+import AnomalyPanel from './AnomalyPanel';
 import './App.css';
 
 const navItems = [
@@ -14,6 +15,11 @@ const navItems = [
     id: 'anomaly',
     label: 'Anomaly Detection',
     description: 'Unusual patterns',
+  },
+  {
+    id: 'ml-anomaly',
+    label: 'ML Anomaly',
+    description: 'Model A predictions',
   },
   {
     id: 'heatmap',
@@ -60,6 +66,7 @@ export default function App() {
       <main className="integrated-main">
         {activeView === 'graphs' && <GraphDashboard />}
         {activeView === 'anomaly' && <AnomalyDetectionDashboard />}
+        {activeView === 'ml-anomaly' && <AnomalyPanel />}
         {activeView === 'heatmap' && <HeatmapDashboard />}
       </main>
     </div>

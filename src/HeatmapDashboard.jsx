@@ -15,6 +15,11 @@ import {
 } from 'recharts';
 import { create } from 'zustand';
 import energyData from './original_10floor_energy_co2_waste_ac_fixed_dataset.json';
+import {
+  useLatestAnomalies,
+  severityToColor,
+  baseSeverityBand,
+} from './api/ml1Helpers';
 import './App.css';
 
 // ==========================================================
@@ -22,7 +27,7 @@ import './App.css';
 // ==========================================================
 const useStore = create((set) => ({
   activeLevel: 'all', // 'all' means all floors, 'Level_N' means single floor
-  activeRoom: 'Room_A',
+  activeRoom: 'all',  // 'all' means all rooms, 'Room_X' means single room
   activeMetric: 'total',
   timeIndex: 0,
   hourIndex: 0,
@@ -30,8 +35,11 @@ const useStore = create((set) => ({
   buildingMode: 'light',
   periodMode: 'month',
   showRoomLabels: true,
+  // 'energy' = legacy intensity coloring (getHeatmapColor).
+  // 'ml'     = color each room by the ML1 backend's anomaly severity.
+  colorMode: 'energy',
 
-  setActiveLevel: (level) => set({ activeLevel: level, activeRoom: 'Room_A' }),
+  setActiveLevel: (level) => set({ activeLevel: level, activeRoom: 'all' }),
   setActiveRoom: (room) => set({ activeRoom: room }),
   setActiveMetric: (metric) => set({ activeMetric: metric }),
   setTimeIndex: (index) => set({ timeIndex: parseInt(index, 10) }),
@@ -40,6 +48,7 @@ const useStore = create((set) => ({
   setBuildingMode: (mode) => set({ buildingMode: mode }),
   setPeriodMode: (mode) => set({ periodMode: mode }),
   setShowRoomLabels: (value) => set({ showRoomLabels: value }),
+  setColorMode: (mode) => set({ colorMode: mode }),
 }));
 
 // ==========================================================
@@ -376,25 +385,36 @@ const getAggregatedRoomValue = (
   return Math.round(total * 100) / 100;
 };
 
-const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourIndex) => {
-  const isAll = levelId === 'all';
+// Resolve one raw row's value for a (levelId, roomId) selection, where either
+// dimension may be 'all'. Used by buildChartData so the chart aggregation
+// matches the headline/currentValue aggregation exactly.
+const resolveRowValue = (row, levelId, roomId, metric) => {
+  const levels = levelId === 'all' ? levelConfigs.map((l) => l.id) : [levelId];
+  let sum = 0;
+  let hasData = false;
 
+  levels.forEach((lvl) => {
+    const rooms = roomId === 'all' ? getRoomsForLevel(lvl).map((r) => r.id) : [roomId];
+    rooms.forEach((rm) => {
+      const val = getRoomValue(row, lvl, rm, metric);
+      if (val !== null) {
+        sum += val;
+        hasData = true;
+      }
+    });
+  });
+
+  return hasData ? sum : null;
+};
+
+const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourIndex) => {
   if (periodMode === 'hour') {
-    let selectedDayValue = null;
-    if (isAll) {
-      let sum = 0;
-      let hasData = false;
-      levelConfigs.forEach((level) => {
-        const val = getRoomValue(energyData[timeIndex], level.id, roomId, metric);
-        if (val !== null) {
-          sum += val;
-          hasData = true;
-        }
-      });
-      selectedDayValue = hasData ? sum : null;
-    } else {
-      selectedDayValue = getRoomValue(energyData[timeIndex], levelId, roomId, metric);
-    }
+    const selectedDayValue = resolveRowValue(
+      energyData[timeIndex],
+      levelId,
+      roomId,
+      metric
+    );
 
     if (selectedDayValue === null) {
       return [];
@@ -410,24 +430,10 @@ const buildChartData = (levelId, roomId, metric, timeIndex, periodMode, hourInde
 
   const rows = getPeriodRows(timeIndex, periodMode);
 
-  return rows.map((row) => {
-    let value = null;
-    if (isAll) {
-      let sum = 0;
-      let hasData = false;
-      levelConfigs.forEach((level) => {
-        const val = getRoomValue(row, level.id, roomId, metric);
-        if (val !== null) {
-          sum += val;
-          hasData = true;
-        }
-      });
-      value = hasData ? sum : null;
-    } else {
-      value = getRoomValue(row, levelId, roomId, metric);
-    }
-    return { date: row.date.slice(5), value };
-  });
+  return rows.map((row) => ({
+    date: row.date.slice(5),
+    value: resolveRowValue(row, levelId, roomId, metric),
+  }));
 };
 
 const getPeriodDescription = (timeIndex, periodMode, hourIndex = 0) => {
@@ -638,6 +644,37 @@ const getRiskLabel = (value, metric, periodMode = 'month', isAllFloors = false) 
   return 'Critical';
 };
 
+// ---------------------------------------------------------------------------
+// ML severity helpers (Model A / ML1).
+//
+// When colorMode === 'ml', room colours and the analytics "Risk Level" are
+// driven by the backend's anomaly severity for that floor/room — NOT by the
+// raw energy-threshold getRiskLabel logic above.
+// ---------------------------------------------------------------------------
+const SEVERITY_LABEL_SHORT = {
+  Normal: 'Normal',
+  Low: 'Low',
+  Medium: 'Medium',
+  High: 'High',
+  Efficiency: 'Efficiency',
+};
+
+// Colour a room from its ML severity. Falls back to neutral grey when the
+// backend has no result for this floor/room (e.g. level not in latest run).
+const getMlRoomColor = (anomalyIndex, levelId, roomId) => {
+  const hit = anomalyIndex?.get(`${levelId}|${roomId}`);
+  if (!hit) return '#64748b';
+  return severityToColor(hit.severity);
+};
+
+// ML severity label for the analytics panel.
+const getMlRiskLabel = (anomalyIndex, levelId, roomId) => {
+  const hit = anomalyIndex?.get(`${levelId}|${roomId}`);
+  if (!hit) return 'No ML data';
+  const band = baseSeverityBand(hit.severity);
+  return SEVERITY_LABEL_SHORT[band] || hit.severity;
+};
+
 // ==========================================================
 // 5. Building Model
 // Light View = merged GLB for smoother rotation.
@@ -711,7 +748,7 @@ useGLTF.preload('/comm_building_xray.glb');
 // ==========================================================
 // 6. Heatmap Overlay
 // ==========================================================
-function RoomHeatmapOverlay() {
+function RoomHeatmapOverlay({ anomalyIndex, colorMode }) {
   const {
     activeLevel,
     activeRoom,
@@ -730,6 +767,7 @@ function RoomHeatmapOverlay() {
   const levelsToShow = isAllFloors
     ? levelConfigs
     : levelConfigs.filter((l) => l.id === activeLevel);
+  const usingMl = colorMode === 'ml';
 
   return (
     <group>
@@ -751,14 +789,24 @@ function RoomHeatmapOverlay() {
           const valueToShow =
             viewMode === 'predicted' ? predictedValue : currentValue;
 
-          const isActive = activeRoom === room.id;
-          const roomColor = getHeatmapColor(valueToShow, activeMetric, periodMode);
+          const isActive = activeRoom === 'all' || activeRoom === room.id;
+          // ML mode colours by backend severity; otherwise by energy intensity.
+          const roomColor = usingMl
+            ? getMlRoomColor(anomalyIndex, level.id, room.id)
+            : getHeatmapColor(valueToShow, activeMetric, periodMode);
 
           // Show only the selected room highlighted (dim others), regardless of
           // whether a single floor or all floors are currently displayed.
+          // When "All Rooms" is selected, no room is dimmed.
           const shouldDim = !isActive;
           const roomOpacity = shouldDim ? 0.18 : (isActive ? 0.92 : 0.72);
           const wireOpacity = shouldDim ? 0.06 : (isActive ? 0.5 : 0.24);
+
+          // In ML mode, look up the anomaly subtitle for the label.
+          const mlHit = usingMl ? anomalyIndex?.get(`${level.id}|${room.id}`) : null;
+          const mlSubtitle = mlHit
+            ? `${mlHit.severity} · ${mlHit.anomaly_type}`
+            : 'No ML data';
 
           return (
             <group key={`${level.id}-${room.id}`}>
@@ -836,7 +884,9 @@ function RoomHeatmapOverlay() {
                   >
                     <div style={{ fontWeight: 600 }}>{isAllFloors ? `${level.label} - ${room.label}` : room.label}</div>
                     <div style={{ fontSize: isAllFloors ? '10px' : '11px', color: '#cbd5e1', marginTop: '1px' }}>
-                      {metricInfo.label}: {valueToShow === null ? 'No data' : `${formatValue(valueToShow)} ${metricInfo.unit}`}
+                      {usingMl
+                        ? mlSubtitle
+                        : `${metricInfo.label}: ${valueToShow === null ? 'No data' : `${formatValue(valueToShow)} ${metricInfo.unit}`}`}
                     </div>
                   </div>
                 </Html>
@@ -1042,10 +1092,11 @@ function InfoPill({ label, value }) {
   );
 }
 
-function HeatmapLegend() {
+function HeatmapLegend({ colorMode, mlTimestamp, mlError }) {
   const { activeMetric, periodMode } = useStore();
   const metricInfo = getMetricInfo(activeMetric);
   const range = getMetricRange(activeMetric, periodMode);
+  const usingMl = colorMode === 'ml';
 
   return (
     <Card
@@ -1059,35 +1110,88 @@ function HeatmapLegend() {
         backdropFilter: 'blur(8px)',
       }}
     >
-      <div style={{ fontSize: '13px', fontWeight: 800 }}>Heatmap Scale</div>
-      <div
-        style={{
-          marginTop: '10px',
-          height: '14px',
-          width: '100%',
-          borderRadius: '999px',
-          background:
-            'linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444)',
-        }}
-      />
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginTop: '8px',
-          fontSize: '12px',
-          color: '#cbd5e1',
-        }}
-      >
-        <span>Low</span>
-        <span>Medium</span>
-        <span>High</span>
-        <span>Critical</span>
+      <div style={{ fontSize: '13px', fontWeight: 800 }}>
+        {usingMl ? 'ML Anomaly Severity' : 'Heatmap Scale'}
       </div>
-      <div style={{ marginTop: '10px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.5 }}>
-        {metricInfo.label} range: {formatValue(range.min)} to {formatValue(range.max)} {metricInfo.unit}.
-        Red means higher consumption compared to the dataset.
-      </div>
+
+      {usingMl ? (
+        <>
+          <div style={{ marginTop: '10px', display: 'grid', gap: '6px' }}>
+            {[
+              { color: '#22c55e', label: 'Normal' },
+              { color: '#eab308', label: 'Low' },
+              { color: '#f97316', label: 'Medium' },
+              { color: '#ef4444', label: 'High' },
+              { color: '#38bdf8', label: 'Efficiency (under-use)' },
+              { color: '#64748b', label: 'No ML data' },
+            ].map((row) => (
+              <div
+                key={row.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  color: '#cbd5e1',
+                }}
+              >
+                <span
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '4px',
+                    background: row.color,
+                  }}
+                />
+                {row.label}
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              marginTop: '10px',
+              fontSize: '12px',
+              color: '#94a3b8',
+              lineHeight: 1.5,
+            }}
+          >
+            {mlError
+              ? `ML1 API unavailable: ${mlError}`
+              : `Colour = Model A severity at ${mlTimestamp || 'latest'}.`}
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            style={{
+              marginTop: '10px',
+              height: '14px',
+              width: '100%',
+              borderRadius: '999px',
+              background:
+                'linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444)',
+            }}
+          />
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginTop: '8px',
+              fontSize: '12px',
+              color: '#cbd5e1',
+            }}
+          >
+            <span>Low</span>
+            <span>Medium</span>
+            <span>High</span>
+            <span>Critical</span>
+          </div>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.5 }}>
+            {metricInfo.label} range: {formatValue(range.min)} to {formatValue(range.max)} {metricInfo.unit}.
+            Red means higher consumption compared to the dataset.
+          </div>
+        </>
+      )}
     </Card>
   );
 }
@@ -1106,6 +1210,7 @@ export default function HeatmapDashboard() {
     periodMode,
     buildingMode,
     showRoomLabels,
+    colorMode,
     setActiveLevel,
     setActiveRoom,
     setActiveMetric,
@@ -1115,25 +1220,78 @@ export default function HeatmapDashboard() {
     setBuildingMode,
     setPeriodMode,
     setShowRoomLabels,
+    setColorMode,
   } = useStore();
+
+  // Latest ML1 anomalies — used when colorMode === 'ml'.
+  const { data: mlData, loading: mlLoading, error: mlError } = useLatestAnomalies();
+  const anomalyIndex = mlData?.index;
+  const usingMl = colorMode === 'ml';
 
   const metricInfo = getMetricInfo(activeMetric);
   const isAllFloors = activeLevel === 'all';
+  const isAllRooms = activeRoom === 'all';
   // For analytics panel: when "all floors" is selected, use Level_1 as default context
   // The 3D view handles all floors independently
   const analyticsLevelId = isAllFloors ? 'Level_1' : activeLevel;
   const visibleRooms = getRoomsForLevel(analyticsLevelId);
-  const resolvedRoomId = visibleRooms.some((room) => room.id === activeRoom)
-    ? activeRoom
-    : visibleRooms[0]?.id || 'Room_A';
+  // "all" is a valid room selection (sum across rooms); otherwise fall back to
+  // the first available room if the stored selection is not on this level.
+  const resolvedRoomId =
+    activeRoom === 'all'
+      ? 'all'
+      : visibleRooms.some((room) => room.id === activeRoom)
+        ? activeRoom
+        : visibleRooms[0]?.id || 'Room_A';
 
   const selectedLevel = isAllFloors ? null : getLevelInfo(activeLevel);
   const selectedRoom =
-    visibleRooms.find((item) => item.id === resolvedRoomId) || visibleRooms[0];
+    resolvedRoomId === 'all'
+      ? null
+      : visibleRooms.find((item) => item.id === resolvedRoomId) || visibleRooms[0];
+  // Display label that is safe for both single-room and "All Rooms" modes.
+  const selectedRoomLabel = isAllRooms ? 'All Rooms' : (selectedRoom?.label || 'Room A');
 
-  // For "all floors" mode, sum the room value across all floors
+  // Aggregate the displayed value.
+  // - "all floors" sums across every floor for the selected room.
+  // - "all rooms" sums across every room on the selected floor(s).
+  // - both "all" sums across every floor AND every room.
+  // - otherwise a single floor + single room value.
+  const sumRoomValue = (levelId, metric) => {
+    let sum = 0;
+    let hasData = false;
+    getRoomsForLevel(levelId).forEach((room) => {
+      const val = getAggregatedRoomValue(
+        levelId,
+        room.id,
+        metric,
+        timeIndex,
+        periodMode,
+        hourIndex
+      );
+      if (val !== null) {
+        sum += val;
+        hasData = true;
+      }
+    });
+    return hasData ? sum : null;
+  };
+
   let currentValue = null;
-  if (isAllFloors) {
+  if (isAllFloors && isAllRooms) {
+    // Whole-building total.
+    let sum = 0;
+    let hasData = false;
+    levelConfigs.forEach((level) => {
+      const val = sumRoomValue(level.id, activeMetric);
+      if (val !== null) {
+        sum += val;
+        hasData = true;
+      }
+    });
+    currentValue = hasData ? sum : null;
+  } else if (isAllFloors) {
+    // All floors, single room.
     let sum = 0;
     let hasData = false;
     levelConfigs.forEach((level) => {
@@ -1151,6 +1309,9 @@ export default function HeatmapDashboard() {
       }
     });
     currentValue = hasData ? sum : null;
+  } else if (isAllRooms) {
+    // Single floor, all rooms.
+    currentValue = sumRoomValue(activeLevel, activeMetric);
   } else {
     currentValue = getAggregatedRoomValue(
       activeLevel,
@@ -1167,8 +1328,20 @@ export default function HeatmapDashboard() {
   const displayedValue =
     viewMode === 'predicted' ? predictedValue : currentValue;
 
-  const riskLabel = getRiskLabel(displayedValue, activeMetric, periodMode, isAllFloors);
-  const valueColor = getHeatmapColor(displayedValue, activeMetric, periodMode, isAllFloors);
+  // In ML mode the "Risk Level" and its colour come from the backend's anomaly
+  // severity for this floor/room — NOT from the getRiskLabel threshold.
+  // When "all rooms" is selected there is no single floor/room verdict, so we
+  // surface an aggregate label instead of a misleading per-room one.
+  const riskLabel = usingMl
+    ? isAllRooms
+      ? 'Multiple rooms'
+      : getMlRiskLabel(anomalyIndex, analyticsLevelId, resolvedRoomId)
+    : getRiskLabel(displayedValue, activeMetric, periodMode, isAllFloors);
+  const valueColor = usingMl
+    ? isAllRooms
+      ? '#94a3b8'
+      : getMlRoomColor(anomalyIndex, analyticsLevelId, resolvedRoomId)
+    : getHeatmapColor(displayedValue, activeMetric, periodMode, isAllFloors);
   const delta =
     currentValue === null || predictedValue === null
       ? null
@@ -1329,10 +1502,11 @@ export default function HeatmapDashboard() {
               <div>
                 <FieldLabel>Room (click a label in 3D to select)</FieldLabel>
                 <select
-                  value={resolvedRoomId}
+                  value={activeRoom === 'all' ? 'all' : resolvedRoomId}
                   onChange={(event) => setActiveRoom(event.target.value)}
                   style={selectStyle}
                 >
+                  <option value="all">All Rooms</option>
                   {visibleRooms.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.label} | {room.zoneName} | {room.description}
@@ -1427,6 +1601,33 @@ export default function HeatmapDashboard() {
               </div>
             </div>
 
+            <div style={{ marginTop: '16px' }}>
+              <FieldLabel>Color Mode</FieldLabel>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <SegmentedButton
+                  active={colorMode === 'energy'}
+                  onClick={() => setColorMode('energy')}
+                >
+                  Energy Intensity
+                </SegmentedButton>
+                <SegmentedButton
+                  active={colorMode === 'ml'}
+                  onClick={() => setColorMode('ml')}
+                >
+                  ML Anomaly
+                </SegmentedButton>
+              </div>
+              <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '12px' }}>
+                {usingMl
+                  ? mlLoading
+                    ? 'Loading latest anomalies from the ML1 backend…'
+                    : mlError
+                    ? `ML1 API unavailable — showing grey for unknown rooms (${mlError}).`
+                    : `Colouring rooms by Model A severity at ${mlData?.timestamp || 'latest'}. Severity comes from the backend, not a raw threshold.`
+                  : 'Energy Intensity colours rooms by their kWh value vs. the dataset range.'}
+              </div>
+            </div>
+
             <div style={{ marginTop: '18px' }}>
               <div
                 style={{
@@ -1492,7 +1693,7 @@ export default function HeatmapDashboard() {
                 Now Viewing
               </div>
               <div style={{ marginTop: '4px', fontSize: '13px', fontWeight: 800 }}>
-                {activeLevel === 'all' ? `All Floors | ${selectedRoom.label}` : `${selectedLevel?.label || activeLevel} | ${selectedRoom.label}`}
+                {activeLevel === 'all' ? `All Floors | ${selectedRoomLabel}` : `${selectedLevel?.label || activeLevel} | ${selectedRoomLabel}`}
               </div>
               <div style={{ marginTop: '2px', fontSize: '12px', color: '#cbd5e1' }}>
                 {metricInfo.label} {getPeriodLabel(periodMode).toLowerCase()} heatmap | {sliderLabel}
@@ -1544,7 +1745,10 @@ export default function HeatmapDashboard() {
                 >
                   <BuildingDisplay />
                   <LevelGuide />
-                  <RoomHeatmapOverlay />
+                  <RoomHeatmapOverlay
+                    anomalyIndex={anomalyIndex}
+                    colorMode={colorMode}
+                  />
                 </group>
               </Suspense>
               <OrbitControls
@@ -1556,7 +1760,11 @@ export default function HeatmapDashboard() {
               />
             </Canvas>
 
-            <HeatmapLegend />
+            <HeatmapLegend
+              colorMode={colorMode}
+              mlTimestamp={mlData?.timestamp}
+              mlError={mlError}
+            />
           </Card>
         </div>
 
@@ -1580,13 +1788,17 @@ export default function HeatmapDashboard() {
                 label="Displayed Value"
                 value={displayedValue === null ? 'No data' : `${formatValue(displayedValue)} ${metricInfo.unit}`}
                 valueColor={valueColor}
-                helper={`${metricInfo.label} in ${selectedLevel?.label || 'All Floors'}, ${selectedRoom.label}`}
+                helper={`${metricInfo.label} in ${selectedLevel?.label || 'All Floors'}, ${selectedRoomLabel}`}
               />
               <StatCard
                 label="Risk Level"
                 value={riskLabel}
                 valueColor={valueColor}
-                helper="Compared with the dataset range"
+                helper={
+                  usingMl
+                    ? `Model A anomaly severity for ${selectedRoomLabel}`
+                    : 'Compared with the dataset range'
+                }
               />
             </div>
           </Card>
@@ -1605,8 +1817,8 @@ export default function HeatmapDashboard() {
               }}
             >
               <InfoPill label="Level" value={selectedLevel?.label || 'All Floors'} />
-              <InfoPill label="Room" value={`${selectedRoom.label} | ${selectedRoom.zoneName}`} />
-              <InfoPill label="Area" value={selectedRoom.description} />
+              <InfoPill label="Room" value={isAllRooms ? 'All Rooms' : `${selectedRoom.label} | ${selectedRoom.zoneName}`} />
+              <InfoPill label="Area" value={isAllRooms ? 'All zones' : selectedRoom.description} />
               <InfoPill label="Metric" value={metricInfo.label} />
               <InfoPill label="Selected time" value={sliderLabel} />
               <InfoPill label="Range" value={getPeriodLabel(periodMode)} />
@@ -1626,8 +1838,8 @@ export default function HeatmapDashboard() {
               title="Energy Trend Chart"
               subtitle={
                 periodMode === 'total'
-                  ? `Total usage trend for ${selectedLevel?.label || 'All Floors'}, ${selectedRoom.label}.`
-                  : `${getPeriodLabel(periodMode)} ${metricInfo.label.toLowerCase()} trend for ${selectedLevel?.label || 'All Floors'}, ${selectedRoom.label}.`
+                  ? `Total usage trend for ${selectedLevel?.label || 'All Floors'}, ${selectedRoomLabel}.`
+                  : `${getPeriodLabel(periodMode)} ${metricInfo.label.toLowerCase()} trend for ${selectedLevel?.label || 'All Floors'}, ${selectedRoomLabel}.`
               }
             />
 
