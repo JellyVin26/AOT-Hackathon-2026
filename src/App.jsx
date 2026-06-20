@@ -1,18 +1,24 @@
 import React, { useState } from 'react';
 import HeatmapDashboard from './HeatmapDashboard';
 import GraphDashboard from './GraphDashboard';
+import AnomalyDetectionDashboard from './AnomalyDetectionDashboard';
 import './App.css';
 
 const navItems = [
   {
     id: 'graphs',
     label: 'Dashboard',
-    description: 'Power, water and server trends',
+    description: 'Sustainability overview',
+  },
+  {
+    id: 'anomaly',
+    label: 'Anomaly Detection',
+    description: 'Unusual energy patterns',
   },
   {
     id: 'heatmap',
     label: '3D Heatmap',
-    description: 'Building energy heatmap',
+    description: 'Building energy view',
   },
 ];
 
@@ -23,7 +29,7 @@ function TopNavigation({ activeView, setActiveView }) {
         <div className="top-nav-logo">S</div>
         <div>
           <h1>Sustainable Building Intelligence</h1>
-          <p>Energy efficiency, water usage and smart building insights</p>
+          <p>Energy efficiency, anomaly detection and smart building insights</p>
         </div>
       </div>
 
@@ -52,7 +58,9 @@ export default function App() {
       <TopNavigation activeView={activeView} setActiveView={setActiveView} />
 
       <main className="integrated-main">
-        {activeView === 'graphs' ? <GraphDashboard /> : <HeatmapDashboard />}
+        {activeView === 'graphs' && <GraphDashboard />}
+        {activeView === 'anomaly' && <AnomalyDetectionDashboard />}
+        {activeView === 'heatmap' && <HeatmapDashboard />}
       </main>
     </div>
   );
