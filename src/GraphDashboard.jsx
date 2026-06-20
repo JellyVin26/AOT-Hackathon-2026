@@ -16,7 +16,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import energyData from './original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_dataset.json';
 import './GraphDashboard.css';
 
 const TIME_OPTIONS = [
@@ -790,7 +790,7 @@ export default function GraphDashboard() {
           )}
 
           <footer className="graph-footer">
-            Dataset source: original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json · {energyData.length} daily records
+            Dataset source: original_10floor_energy_co2_waste_ac_fixed_dataset.json · {energyData.length} daily records
           </footer>
         </>
       )}

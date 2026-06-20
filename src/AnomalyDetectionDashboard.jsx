@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import energyData from './original_10floor_energy_co2_waste_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_dataset.json';
 import './AnomalyDetectionDashboard.css';
 
 const COLORS = {

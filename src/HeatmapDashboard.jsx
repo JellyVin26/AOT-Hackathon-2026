@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { create } from 'zustand';
-import energyData from './original_10floor_energy_co2_waste_ac_fixed_no_room_e_dataset.json';
+import energyData from './original_10floor_energy_co2_waste_ac_fixed_dataset.json';
 import './App.css';
 
 // ==========================================================
@@ -59,14 +59,14 @@ const DASHBOARD_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMac
 const levelConfigs = [
   { id: 'Level_1', label: 'Floor 1', y: 70, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D'] },
   { id: 'Level_2', label: 'Floor 2', y: 230, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D'] },
-  { id: 'Level_3', label: 'Floor 3', y: 390, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_4', label: 'Floor 4', y: 550, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_5', label: 'Floor 5', y: 710, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_6', label: 'Floor 6', y: 870, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_7', label: 'Floor 7', y: 1030, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_8', label: 'Floor 8', y: 1190, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_9', label: 'Floor 9', y: 1350, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
-  { id: 'Level_10', label: 'Floor 10', y: 1510, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_D'] },
+  { id: 'Level_3', label: 'Floor 3', y: 390, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_4', label: 'Floor 4', y: 550, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_5', label: 'Floor 5', y: 710, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_6', label: 'Floor 6', y: 870, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_7', label: 'Floor 7', y: 1030, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_8', label: 'Floor 8', y: 1190, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_9', label: 'Floor 9', y: 1350, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
+  { id: 'Level_10', label: 'Floor 10', y: 1510, rooms: ['Room_A', 'Room_B', 'Room_C', 'Room_D', 'Room_E'] },
 ];
 
 const ROOM_ROTATION_DEG = -45;
@@ -119,7 +119,7 @@ const baseRoomTemplates = [
     labelOffsetZ: -20,
   },
   {
-    id: 'Room_D',
+    id: 'Room_E',
     label: 'Room E',
     zoneName: 'Zone 5',
     description: 'Additional Area',
