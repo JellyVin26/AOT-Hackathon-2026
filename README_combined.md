@@ -167,6 +167,7 @@ http://127.0.0.1:8000/metrics
 Open another terminal:
 
 ```powershell
+cd to main root directory
 cd backend
 .\venv\Scripts\python.exe -m uvicorn main:app --reload --port 8001
 ```
@@ -176,6 +177,7 @@ cd backend
 Open another terminal from the main project folder:
 
 ```powershell
+cd to main root directory
 npm run dev
 ```
 
