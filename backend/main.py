@@ -101,20 +101,20 @@ def root():
 @app.post("/generate-ai-insight")
 async def generate_ai_insight(payload: dict):
     try:
-        api_key = os.getenv("GRAFILAB_API_KEY")
-        base_url = os.getenv("GRAFILAB_BASE_URL")
-        model = os.getenv("GRAFILAB_MODEL", "gpt-4o-mini")
+        api_key = os.getenv("GEMINI_API_KEY")
+        base_url = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
         if not api_key:
             return {
                 "status": "error",
-                "error": "GRAFILAB_API_KEY is missing in .env",
+                "error": "GEMINI_API_KEY is missing in .env",
             }
 
         if not base_url:
             return {
                 "status": "error",
-                "error": "GRAFILAB_BASE_URL is missing in .env",
+                "error": "GEMINI_BASE_URL is missing in .env",
             }
 
         prompt = build_prompt(payload)
