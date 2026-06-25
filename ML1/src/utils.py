@@ -50,13 +50,18 @@ def load_dataset(path: Path | str | None = None) -> pd.DataFrame:
     path:
         Optional override for the CSV location (used by tests).
     """
+    import collections
     csv_path = Path(path) if path is not None else DATA_PATH
     if not csv_path.exists():
         raise FileNotFoundError(
             f"Dataset not found at {csv_path}. Expected the AI-ready training "
             f"CSV under ML1/data/."
         )
-    df = pd.read_csv(csv_path)
+    # Read only the last 20,000 rows to prevent Render Free Tier OOM (512MB RAM limit)
+    # 160MB CSV spikes memory to >500MB if read all at once.
+    chunks = collections.deque(pd.read_csv(csv_path, chunksize=10000), maxlen=2)
+    df = pd.concat(chunks, ignore_index=True)
+    
     if feature_config.TIMESTAMP_COLUMN in df.columns:
         df = df.sort_values(feature_config.TIMESTAMP_COLUMN).reset_index(drop=True)
     return df
