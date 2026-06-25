@@ -494,7 +494,8 @@ export default function AnomalyDetectionDashboard() {
         floorSummary,
       });
 
-      const response = await fetch('http://localhost:8001/generate-ai-insight', {
+      const insightApiUrl = (import.meta.env && import.meta.env.VITE_INSIGHT_API_URL) || 'http://localhost:8001';
+      const response = await fetch(`${insightApiUrl}/generate-ai-insight`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
