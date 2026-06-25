@@ -4,6 +4,8 @@
 
 The system combines energy usage, CO₂ emissions, waste, water, temperature, anomaly detection, ML-based anomaly prediction, and 3D building heatmap visualisation into one dashboard.
 
+**Live Demo:** [https://ecovision-pi.vercel.app/](https://ecovision-pi.vercel.app/)
+
 ---
 
 ## Team Name & Team Members
