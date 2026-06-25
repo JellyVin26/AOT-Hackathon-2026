@@ -118,8 +118,13 @@ async def generate_ai_insight(payload: dict):
             }
 
         prompt = build_prompt(payload)
+        
+        request_client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
 
-        response = client.chat.completions.create(
+        response = request_client.chat.completions.create(
             model=model,
             messages=[
                 {
