@@ -5,8 +5,8 @@
     "method": "time_based",
     "train_fraction": 0.8,
     "test_fraction": 0.2,
-    "train_rows": 57139,
-    "test_rows": 14285
+    "train_rows": 9139,
+    "test_rows": 2285
   },
   "features": {
     "numeric": [
@@ -118,10 +118,10 @@
     "model_training_target_notes"
   ],
   "metrics": {
-    "mae": 121.98388367152297,
-    "rmse": 303.29795610700296,
-    "mape": 24.93154175549233,
-    "mape_rows_used": 14234,
-    "r2": 0.7837749494236115
+    "mae": 55.68328314961053,
+    "rmse": 116.0190553695842,
+    "mape": 20.216505983932205,
+    "mape_rows_used": 2285,
+    "r2": 0.9015306059934763
   }
 }

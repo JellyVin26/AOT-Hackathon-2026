@@ -86,8 +86,8 @@ def build_pipeline(
     )
 
     regressor = RandomForestRegressor(
-        n_estimators=80,
-        max_depth=None,
+        n_estimators=20,
+        max_depth=10,
         min_samples_leaf=2,
         n_jobs=-1,
         random_state=42,
